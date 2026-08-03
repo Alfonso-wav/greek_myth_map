@@ -1,0 +1,5 @@
+# El repo se escribe desde Windows: normaliza a LF en el índice para que los
+# .sql, .py y .ts no lleguen con CRLF a quien clone desde Linux o macOS.
+* text=auto eol=lf
+
+*.png binary

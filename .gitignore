@@ -1,0 +1,29 @@
+# datos: dumps descargados y base generada. Reproducibles con `uv run greek fetch`.
+data/raw/
+data/*.db
+data/*.db-wal
+data/*.db-shm
+
+# entorno gestionado por uv
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# uv.lock SÍ se versiona (no lo ignores)
+
+# web: dependencias, build y el JSON generado desde la base
+web/node_modules/
+web/dist/
+web/public/data/
+web/.vite/
+
+# ajustes locales de herramientas / SO
+.claude/settings.local.json
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+*.log
+

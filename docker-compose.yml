@@ -1,0 +1,48 @@
+# Memgraph + Memgraph Lab para explorar data/greek.db como grafo.
+#
+# La base de verdad sigue siendo el SQLite local: Memgraph es una **proyeccion
+# de lectura**, se reconstruye entera con `uv run greek graph --wipe`. No edites
+# nada aqui esperando que vuelva a greek.db.
+#
+#   docker compose up -d
+#   uv run greek graph --wipe        # carga la proyeccion
+#   http://localhost:3000            # Lab; Quick Connect ya apunta a memgraph:7687
+services:
+  memgraph:
+    image: memgraph/memgraph-mage:latest
+    container_name: greek-memgraph
+    ports:
+      - "7687:7687" # bolt
+      - "7444:7444" # log stream que consume Lab
+    command:
+      - "--log-level=WARNING"
+      - "--also-log-to-stderr"
+      # sin esto Lab no puede dibujar la vista de esquema
+      - "--schema-info-enabled=true"
+      # 51k nodos + 31k aristas entran de sobra en memoria; el limite evita que
+      # una consulta con un `*..8` sin filtrar se coma el host
+      - "--memory-limit=4096"
+    volumes:
+      - memgraph_data:/var/lib/memgraph
+      - memgraph_log:/var/log/memgraph
+    healthcheck:
+      test: ["CMD-SHELL", "echo 'RETURN 0;' | mgconsole || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  lab:
+    image: memgraph/lab:latest
+    container_name: greek-lab
+    ports:
+      - "3000:3000"
+    depends_on:
+      memgraph:
+        condition: service_healthy
+    environment:
+      QUICK_CONNECT_MG_HOST: memgraph
+      QUICK_CONNECT_MG_PORT: 7687
+
+volumes:
+  memgraph_data:
+  memgraph_log:

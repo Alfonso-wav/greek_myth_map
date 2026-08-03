@@ -1,0 +1,779 @@
+/* Paleta sepia. Solo DOS colores significan algo: el sepia (cuantas afirmaciones
+ * hay en un lugar — rampa ordinal de un solo tono) y el verdigris (mismo hecho
+ * situado en dos lugares distintos). Todo lo demas es tinta y papel.
+ *
+ * Validado con el validador de la guia de dataviz contra las superficies reales,
+ * no a ojo. El acento se comprobo contra los CUATRO pasos de la rampa, no solo
+ * contra uno, porque conviven todos en el mismo lienzo:
+ *
+ *   light  peor par m2/acento sobre #f7f0e2 -> CVD dE 9.2  · normal 19.2
+ *   dark   peor par m3/acento sobre #241d16 -> CVD dE 9.5  · normal 18.7
+ *   (objetivo CVD >= 8, suelo de vision normal >= 15)
+ *
+ * El verdigris no es decorativo: es el verde de plancha de cobre, que es
+ * exactamente lo que un mapa grabado del XIX usaba junto a la tinta sepia.
+ */
+
+:root {
+  color-scheme: light;
+
+  --plano: #efe4cd;
+  --superficie: #f7f0e2;
+  --superficie-alta: #fbf6ec;
+
+  --tinta: #241c12;
+  --tinta-2: #5c4a34;
+  --tinta-apagada: #8a7457;
+
+  --linea: #d9c8a6;
+  --linea-fina: #e6d8bd;
+  --eje: #c0aa84;
+
+  /* Rampa ORDINAL de un solo tono para las marcas (m1 = menos afirmaciones,
+   * m4 = mas). Ordinal y no secuencial continua porque son marcas discretas, y
+   * por eso el paso mas cercano a la superficie tiene que despegar de ella:
+   * validada con --ordinal, 2,06:1 en el extremo claro (el suelo es 2:1).
+   * La rampa anterior arrancaba en #e6d3ac (1,30:1) y esos marcadores
+   * desaparecian contra el pergamino. */
+  --m1: #c9a463;
+  --m2: #bd8639;
+  --m3: #a35f10;
+  --m4: #7d4408;
+
+  --acento: #0a8f7a;
+  --acento-suave: rgba(10, 143, 122, 0.22);
+
+  /* el filtro que vuelve sepia el raster de OSM: tres lineas, sin servidor
+   * de tiles vectoriales */
+  --filtro-mapa: sepia(0.92) saturate(0.62) contrast(0.92) brightness(1.06)
+    hue-rotate(-8deg);
+  --sombra: 0 1px 2px rgba(36, 28, 18, 0.08), 0 6px 20px rgba(36, 28, 18, 0.09);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme='light'])) {
+    color-scheme: dark;
+    --plano: #17120d;
+    --superficie: #241d16;
+    --superficie-alta: #2e251c;
+    --tinta: #f3e7d2;
+    --tinta-2: #cdb894;
+    --tinta-apagada: #9c8664;
+    --linea: #3d3024;
+    --linea-fina: #332920;
+    --eje: #4a3a2b;
+    /* En oscuro la escala se invierte por rol, no por un flip automatico:
+     * sobre fondo oscuro "mas" es mas claro. Validada aparte con --ordinal
+     * contra #241d16 (extremo cercano a la superficie 3,08:1). */
+    --m1: #8e6127;
+    --m2: #ab7730;
+    --m3: #c9913f;
+    --m4: #e0b671;
+    --acento: #22a58c;
+    --acento-suave: rgba(34, 165, 140, 0.26);
+    /* El orden importa: invertir PRIMERO (oscurece el raster sin perder los
+     * rotulos) y virar a sepia DESPUES. Al reves — sepia y luego invert — el
+     * complementario del marron es azul y el mapa sale gris-azulado.
+     * Y sepia alto con saturacion baja: con sepia(0.72) el mar salia
+     * oliva-verdoso, demasiado cerca del verdigris de las lineas de disputa, y
+     * el acento tiene que separarse del fondo para significar algo. */
+    --filtro-mapa: invert(0.94) hue-rotate(180deg) sepia(0.96) saturate(1.1)
+      brightness(0.8) contrast(0.9);
+    --sombra: 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 20px rgba(0, 0, 0, 0.45);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --plano: #17120d;
+  --superficie: #241d16;
+  --superficie-alta: #2e251c;
+  --tinta: #f3e7d2;
+  --tinta-2: #cdb894;
+  --tinta-apagada: #9c8664;
+  --linea: #3d3024;
+  --linea-fina: #332920;
+  --eje: #4a3a2b;
+  --m1: #8e6127;
+  --m2: #ab7730;
+  --m3: #c9913f;
+  --m4: #e0b671;
+  --acento: #22a58c;
+  --acento-suave: rgba(34, 165, 140, 0.26);
+  --filtro-mapa: invert(0.94) hue-rotate(180deg) sepia(0.96) saturate(1.1)
+    brightness(0.8) contrast(0.9);
+  --sombra: 0 1px 2px rgba(0, 0, 0, 0.5), 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--plano);
+  color: var(--tinta);
+  font: 15px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------------ layout */
+
+.app {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  height: 100%;
+}
+
+/* ------------------------------------------------------------------ filtros */
+
+.filtros {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+  padding: 7px 16px 8px;
+  background: var(--superficie-alta);
+  border-bottom: 1px solid var(--linea);
+  flex-wrap: wrap;
+}
+.filtros fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+.filtros legend {
+  float: left;
+  font-size: 10.5px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--tinta-apagada);
+  font-weight: 600;
+  padding: 0 8px 0 0;
+  line-height: 24px;
+}
+.chip {
+  font-size: 12px;
+  padding: 3px 9px;
+  border-radius: 11px;
+  border: 1px solid var(--linea);
+  background: var(--superficie);
+  color: var(--tinta-2);
+  white-space: nowrap;
+}
+.chip b {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--tinta-apagada);
+  margin-left: 2px;
+}
+.chip[aria-pressed='true'] {
+  border-color: var(--m3);
+  background: color-mix(in srgb, var(--m1) 38%, transparent);
+  color: var(--tinta);
+}
+.chip[aria-pressed='true'] b {
+  color: var(--tinta-2);
+}
+.chip.limpiar {
+  border-style: dashed;
+  color: var(--tinta-apagada);
+}
+
+.buscador input {
+  font: inherit;
+  font-size: 13px;
+  width: 210px;
+  padding: 4px 9px;
+  border: 1px solid var(--linea);
+  border-radius: 11px;
+  background: var(--superficie);
+  color: var(--tinta);
+}
+.buscador input::placeholder {
+  color: var(--tinta-apagada);
+}
+.buscador .resultado {
+  font-size: 11.5px;
+  color: var(--tinta-apagada);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------- enlaces externos */
+
+a {
+  color: var(--acento);
+  text-decoration-color: color-mix(in srgb, var(--acento) 45%, transparent);
+  text-underline-offset: 2px;
+}
+a:hover {
+  text-decoration-color: var(--acento);
+}
+
+.enlaces {
+  display: flex;
+  gap: 8px;
+  margin-top: 5px;
+  flex-wrap: wrap;
+}
+.enlaces a {
+  font-size: 11px;
+  padding: 1px 7px;
+  border: 1px solid color-mix(in srgb, var(--acento) 40%, var(--linea));
+  border-radius: 9px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.enlaces a:hover {
+  background: var(--acento-suave);
+}
+
+/* La cita enlazada sigue leyendose como cita, no como boton: solo el color y el
+ * subrayado fino la distinguen de la que no tiene texto disponible. */
+.afirm .citas a {
+  text-decoration: underline;
+}
+a.quien {
+  text-decoration: none;
+  color: var(--tinta);
+  border-bottom: 1px dotted var(--acento);
+}
+a.quien:hover {
+  color: var(--acento);
+}
+
+.cargando {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--tinta-2);
+  gap: 12px;
+  text-align: center;
+}
+
+/* ------------------------------------------------------------- barra arriba */
+
+.barra {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 10px 16px;
+  background: var(--superficie);
+  border-bottom: 1px solid var(--linea);
+  flex-wrap: wrap;
+}
+
+.marca {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin-right: auto;
+}
+.marca b {
+  font-size: 17px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.marca span {
+  color: var(--tinta-apagada);
+  font-size: 12.5px;
+}
+
+.campo {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  color: var(--tinta-2);
+}
+.campo > span {
+  white-space: nowrap;
+}
+
+select,
+button {
+  font: inherit;
+  font-size: 13px;
+  color: var(--tinta);
+  background: var(--superficie-alta);
+  border: 1px solid var(--linea);
+  border-radius: 3px;
+  padding: 5px 9px;
+  cursor: pointer;
+}
+select:focus-visible,
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--acento);
+  outline-offset: 1px;
+}
+
+.conmutadores {
+  display: flex;
+  gap: 6px;
+}
+.conmutador {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--linea);
+  border-radius: 3px;
+  background: var(--superficie-alta);
+  font-size: 12.5px;
+  color: var(--tinta-2);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.conmutador[aria-pressed='true'] {
+  border-color: var(--acento);
+  color: var(--tinta);
+  background: var(--acento-suave);
+}
+.conmutador .punto {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--m3);
+  flex: none;
+}
+.conmutador .punto.verde {
+  background: var(--acento);
+}
+
+/* -------------------------------------------------------------------- mapa */
+
+.lienzo {
+  position: relative;
+  min-height: 0;
+}
+.mapa {
+  position: absolute;
+  inset: 0;
+}
+
+/* el filtro va a los tiles, no al contenedor: los marcadores deben quedar
+ * fuera o el sepia tambien se los come */
+.leaflet-tile-pane {
+  filter: var(--filtro-mapa);
+}
+.leaflet-container {
+  background: var(--plano);
+  font: inherit;
+}
+.leaflet-control-attribution {
+  background: color-mix(in srgb, var(--superficie) 88%, transparent) !important;
+  color: var(--tinta-apagada) !important;
+  font-size: 10.5px !important;
+}
+.leaflet-control-attribution a {
+  color: var(--tinta-2) !important;
+}
+.leaflet-bar a {
+  background: var(--superficie-alta) !important;
+  color: var(--tinta) !important;
+  border-color: var(--linea) !important;
+}
+
+/* --------------------------------------------------------- tooltip de mapa */
+
+.leaflet-tooltip.pista {
+  background: var(--superficie-alta);
+  border: 1px solid var(--linea);
+  border-radius: 3px;
+  box-shadow: var(--sombra);
+  color: var(--tinta);
+  font-size: 12.5px;
+  padding: 6px 9px;
+}
+.leaflet-tooltip.pista::before {
+  display: none;
+}
+.pista b {
+  display: block;
+  font-weight: 600;
+}
+.pista i {
+  color: var(--tinta-apagada);
+  font-style: normal;
+  font-size: 11.5px;
+}
+
+/* ----------------------------------------------------------------- leyenda */
+
+.leyenda {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  z-index: 500;
+  background: color-mix(in srgb, var(--superficie) 94%, transparent);
+  border: 1px solid var(--linea);
+  border-radius: 3px;
+  padding: 9px 11px;
+  font-size: 11.5px;
+  color: var(--tinta-2);
+  box-shadow: var(--sombra);
+  max-width: 230px;
+}
+.leyenda h4 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--tinta-apagada);
+  font-weight: 600;
+}
+.leyenda .escala {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-bottom: 5px;
+}
+.leyenda .escala i {
+  width: 34px;
+  height: 9px;
+  border-radius: 2px;
+}
+.leyenda .escala-rotulos {
+  display: flex;
+  gap: 3px;
+  margin-bottom: 5px;
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  color: var(--tinta-apagada);
+}
+.leyenda .escala-rotulos span {
+  width: 34px;
+  text-align: center;
+}
+.leyenda .fila {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 5px;
+}
+.leyenda .fila .marca-linea {
+  width: 20px;
+  height: 0;
+  border-top: 2px dashed var(--acento);
+  flex: none;
+}
+.leyenda .fila .marca-hueca {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1.5px dashed var(--tinta-apagada);
+  flex: none;
+}
+
+/* -------------------------------------------------------- panel de detalle */
+
+.panel {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  bottom: 12px;
+  width: min(380px, calc(100% - 24px));
+  z-index: 600;
+  display: flex;
+  flex-direction: column;
+  background: var(--superficie);
+  border: 1px solid var(--linea);
+  border-radius: 4px;
+  box-shadow: var(--sombra);
+  overflow: hidden;
+}
+.panel header {
+  padding: 13px 15px 11px;
+  border-bottom: 1px solid var(--linea);
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.panel header h3 {
+  margin: 0;
+  font-size: 15.5px;
+  line-height: 1.25;
+  flex: 1;
+}
+.panel header .sub {
+  color: var(--tinta-apagada);
+  font-size: 11.5px;
+  margin-top: 3px;
+}
+.cerrar {
+  border: 0;
+  background: transparent;
+  color: var(--tinta-apagada);
+  font-size: 19px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+}
+.panel .cuerpo {
+  overflow-y: auto;
+  padding: 4px 0 12px;
+}
+
+.aviso {
+  margin: 11px 15px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--m2);
+  background: color-mix(in srgb, var(--m1) 34%, transparent);
+  font-size: 11.5px;
+  color: var(--tinta-2);
+  border-radius: 0 3px 3px 0;
+}
+
+.afirm {
+  padding: 10px 15px;
+  border-bottom: 1px solid var(--linea-fina);
+}
+.afirm:last-child {
+  border-bottom: 0;
+}
+.afirm .cabeza {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.afirm .quien {
+  font-weight: 600;
+}
+.afirm .gen {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--tinta-apagada);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.afirm .que {
+  color: var(--tinta-2);
+  font-size: 13.5px;
+  margin-top: 2px;
+}
+.afirm .rol {
+  color: var(--tinta-apagada);
+  font-size: 11.5px;
+}
+.afirm .citas {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.afirm .citas li {
+  font-size: 11.5px;
+  color: var(--tinta-2);
+  padding-left: 11px;
+  position: relative;
+}
+.afirm .citas li::before {
+  content: '§';
+  position: absolute;
+  left: 0;
+  color: var(--tinta-apagada);
+}
+.afirm .sin-cita {
+  font-size: 11.5px;
+  color: var(--tinta-apagada);
+  font-style: italic;
+  margin-top: 5px;
+}
+
+/* Los flags de incertidumbre llevan SIEMPRE texto, nunca solo color: "quiza,
+ * segun un escolio" no es lo mismo que "lo dice Hesiodo". */
+.marcas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.marcas em {
+  font-style: normal;
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  padding: 1px 6px;
+  border-radius: 9px;
+  border: 1px solid var(--eje);
+  color: var(--tinta-2);
+  background: var(--superficie-alta);
+}
+
+/* ------------------------------------------------------ slider + histograma */
+
+.tiempo {
+  background: var(--superficie);
+  border-top: 1px solid var(--linea);
+  padding: 9px 16px 12px;
+}
+.tiempo .encabezado {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 5px;
+}
+.tiempo .titulo {
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--tinta-apagada);
+  font-weight: 600;
+}
+.tiempo .anio {
+  margin-left: auto;
+  text-align: right;
+}
+.tiempo .anio b {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.tiempo .anio span {
+  display: block;
+  font-size: 11px;
+  color: var(--tinta-apagada);
+}
+
+.histo {
+  display: block;
+  width: 100%;
+  height: 54px;
+}
+.histo .barra-fondo {
+  fill: var(--m1);
+}
+.histo .barra-act {
+  fill: var(--m3);
+}
+.histo .barra-sel {
+  fill: var(--m4);
+}
+.histo .eje {
+  stroke: var(--eje);
+  stroke-width: 1;
+}
+.histo .tick {
+  fill: var(--tinta-apagada);
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+}
+.histo .zona-sinfecha {
+  fill: var(--linea-fina);
+}
+.histo .diana {
+  fill: transparent;
+  cursor: pointer;
+}
+.histo .diana:hover + rect,
+.histo .barra-hover {
+  fill: var(--m4);
+}
+
+input[type='range'] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 22px;
+  background: transparent;
+  cursor: pointer;
+  margin: 0;
+}
+input[type='range']::-webkit-slider-runnable-track {
+  height: 2px;
+  background: var(--eje);
+  border-radius: 1px;
+}
+input[type='range']::-moz-range-track {
+  height: 2px;
+  background: var(--eje);
+  border-radius: 1px;
+}
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 15px;
+  height: 15px;
+  margin-top: -6.5px;
+  border-radius: 50%;
+  background: var(--m3);
+  border: 2px solid var(--superficie);
+  box-shadow: 0 0 0 1px var(--m4);
+}
+input[type='range']::-moz-range-thumb {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--m3);
+  border: 2px solid var(--superficie);
+  box-shadow: 0 0 0 1px var(--m4);
+}
+
+.pie {
+  display: flex;
+  gap: 14px;
+  align-items: baseline;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--tinta-apagada);
+  flex-wrap: wrap;
+}
+.pie .cifra {
+  font-variant-numeric: tabular-nums;
+  color: var(--tinta-2);
+}
+
+/* ------------------------------------------------------------------- tabla */
+
+.tabla-envoltura {
+  overflow-x: auto;
+  margin: 8px 15px 0;
+}
+table {
+  border-collapse: collapse;
+  font-size: 11.5px;
+  width: 100%;
+}
+th,
+td {
+  text-align: left;
+  padding: 3px 8px 3px 0;
+  border-bottom: 1px solid var(--linea-fina);
+  white-space: nowrap;
+}
+th {
+  color: var(--tinta-apagada);
+  font-weight: 600;
+}
+td.num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  padding-right: 12px;
+}
+
+@media (max-width: 720px) {
+  .panel {
+    top: auto;
+    right: 0;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    max-height: 58%;
+    border-radius: 4px 4px 0 0;
+  }
+  .leyenda {
+    display: none;
+  }
+  .marca span {
+    display: none;
+  }
+}

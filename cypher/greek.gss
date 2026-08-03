@@ -1,0 +1,164 @@
+/* Graph Style Script para Memgraph Lab.
+ *
+ * Pegar en Lab -> Graph Style Editor (panel derecho del resultado de una consulta)
+ * y guardar. Sin esto, 51k nodos salen todos del mismo color y el grafo no se lee.
+ *
+ * Dos ideas: el color codifica QUE es (agente, lugar, fuente, contradiccion) y el
+ * tamano codifica CUANTO se sabe (`grado` = numero de relaciones atestiguadas).
+ * En un corpus donde el 80 % de las entidades son lugares de Pleiades con una sola
+ * mencion, el tamano es lo que separa a Zeus del ruido.
+ */
+
+Define(COLOR_AGENTE, "#c74440")
+Define(COLOR_LUGAR, "#6b8e4e")
+Define(COLOR_OBJETO, "#c9962c")
+Define(COLOR_FUENTE, "#4a6fa5")
+Define(COLOR_EVENTO, "#8b5fbf")
+Define(COLOR_DISPUTA, "#d97706")
+
+@NodeStyle {
+  size: 4
+  color: #8a8a8a
+  color-hover: Darker(#8a8a8a)
+  border-width: 0.4
+  border-color: #2a2a2a
+  label: Coalesce(Property(node, "nombre_es"), Property(node, "nombre"), Property(node, "titulo"), Property(node, "cita"), Property(node, "tipo"), "?")
+}
+
+/* --- que es ------------------------------------------------------------- */
+
+@NodeStyle HasLabel(node, "Agente") {
+  color: COLOR_AGENTE
+  size: 6
+}
+@NodeStyle HasLabel(node, "Colectivo") {
+  color: COLOR_AGENTE
+  border-color: #ffffff
+}
+@NodeStyle HasLabel(node, "Lugar") {
+  color: COLOR_LUGAR
+}
+@NodeStyle HasLabel(node, "Objeto") {
+  color: COLOR_OBJETO
+}
+@NodeStyle HasLabel(node, "Artefacto") {
+  color: COLOR_OBJETO
+  size: 5
+}
+@NodeStyle Or(HasLabel(node, "Autor"), Or(HasLabel(node, "Obra"), HasLabel(node, "Pasaje"))) {
+  color: COLOR_FUENTE
+  size: 4
+}
+@NodeStyle HasLabel(node, "Autor") {
+  size: 7
+}
+@NodeStyle Or(HasLabel(node, "Evento"), HasLabel(node, "EventoMitico")) {
+  color: COLOR_EVENTO
+  size: 9
+}
+@NodeStyle Or(HasLabel(node, "Bando"), Or(HasLabel(node, "Datacion"), HasLabel(node, "Periodo"))) {
+  color: COLOR_EVENTO
+  size: 4
+}
+
+/* La contradiccion es el dato mas valioso de la base: que salte a la vista. */
+@NodeStyle HasLabel(node, "Contradiccion") {
+  color: COLOR_DISPUTA
+  size: 7
+  border-width: 1
+  border-color: #ffffff
+  label: Property(node, "tipo")
+}
+
+/* Un lugar legendario sin coordenada no es un fallo de carga: es Hades. */
+@NodeStyle Equals(Property(node, "es_ficticio"), true) {
+  color: #4b4b4b
+  border-color: COLOR_LUGAR
+  border-width: 1
+}
+
+/* --- papel derivado ----------------------------------------------------- */
+/* Multi-etiqueta y aplicado despues del tipo, asi que gana sobre el color base:
+ * lo que uno quiere ver de un vistazo es si es dios, heroe o monstruo. */
+
+@NodeStyle HasLabel(node, "Gobernante") {
+  border-color: #d9a06b
+  border-width: 1.4
+}
+@NodeStyle HasLabel(node, "Heroe") {
+  color: #b5432f
+}
+@NodeStyle HasLabel(node, "Dios") {
+  color: COLOR_EVENTO
+  border-color: #e6c86b
+  border-width: 1.4
+}
+@NodeStyle HasLabel(node, "Monstruo") {
+  color: #4a5c2a
+  border-color: #1f1f1f
+}
+@NodeStyle HasLabel(node, "Deificado") {
+  border-color: #e6c86b
+  border-width: 2
+}
+
+/* --- cuanto se sabe ----------------------------------------------------- */
+
+@NodeStyle Greater(Property(node, "grado"), 10) { size: 8 }
+@NodeStyle Greater(Property(node, "grado"), 30) { size: 11 }
+@NodeStyle Greater(Property(node, "grado"), 80) { size: 15 }
+@NodeStyle Greater(Property(node, "grado"), 200) { size: 20 }
+
+/* --- aristas ------------------------------------------------------------ */
+
+@EdgeStyle {
+  width: 0.5
+  color: #999999
+  color-hover: #333333
+  label: Type(edge)
+  arrow-size: 1.4
+}
+
+@EdgeStyle HasProperty(edge, "categoria") {
+  label: Coalesce(Property(edge, "predicado_es"), Type(edge))
+}
+
+/* Cuando el objeto viene promovido de un rol, el rol es parte del significado:
+ * "muere" y "muere en" no son la misma afirmacion. */
+@EdgeStyle HasProperty(edge, "rol_objeto") {
+  label: Format("{} [{}]", Coalesce(Property(edge, "predicado_es"), Type(edge)), Property(edge, "rol_objeto"))
+  color: #7f8fa6
+}
+
+@EdgeStyle Equals(Type(edge), "IS_CHILD_OF") {
+  color: #c74440
+  width: 1.2
+}
+@EdgeStyle Equals(Type(edge), "KILLS") {
+  color: #7a1f1f
+  width: 1
+}
+@EdgeStyle Or(Equals(Type(edge), "IS_SPOUSE_OF"), Equals(Type(edge), "MARRIES")) {
+  color: #b5679a
+  width: 1
+}
+@EdgeStyle Or(Equals(Type(edge), "SOBRE"), Equals(Type(edge), "ALTERNATIVA")) {
+  color: COLOR_DISPUTA
+  width: 1
+}
+@EdgeStyle Equals(Type(edge), "ROL") {
+  color: #cccccc
+  width: 0.3
+  label: Property(edge, "rol")
+}
+
+/* Lo que la fuente marca como dudoso se dibuja debil: no es lo mismo "Hesiodo
+ * dice" que "quiza, segun un escolio". */
+@EdgeStyle Or(Equals(Property(edge, "duda"), true), Equals(Property(edge, "incierto"), true)) {
+  color: #d9a06b
+  width: 0.4
+}
+@EdgeStyle Equals(Property(edge, "implicito"), true) {
+  color: #bbbbbb
+  width: 0.3
+}
