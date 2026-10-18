@@ -30,7 +30,10 @@ const ARCO_MIN = 15
 const MAX_ETIQUETA = 22
 /** Por debajo de este radio los rótulos de grupo se pisan en el centro. */
 const R_ROTULOS = 150
-const FAMILIA = new Set<Grupo>(['padres', 'hijos', 'pareja', 'familia'])
+/** Grupos que entran siempre aunque no quepan todas las figuras. La descendencia
+ *  NO: Heracles tiene 63 hijos, casi todos citados una vez, y con prioridad
+ *  llenaban el anillo entero y echaban a sus víctimas. */
+const FAMILIA = new Set<Grupo>(['padres', 'pareja', 'familia'])
 
 const ETIQUETA_GRUPO = Object.fromEntries(GRUPOS.map((g) => [g.k, g.et])) as Record<Grupo, string>
 
@@ -116,9 +119,9 @@ export default function Red({ ir, centro, onCentro, onVerMapa, enMapa }: Props) 
   const cy = h / 2
   const R = Math.max(70, Math.min(w, h) / 2 - MARGEN_ETIQUETA)
   const cupo = Math.max(8, Math.floor((2 * Math.PI * R) / ARCO_MIN))
-  // Si no caben todas, la familia entra siempre y el resto por fuentes (`vecinos`
-  // ya llega ordenado así): recortar por fuentes a secas dejaba fuera a dos de
-  // los cinco progenitores de Heracles, citados una sola vez.
+  // Si no caben todas, progenitores, parejas y hermanos entran siempre y el resto
+  // por fuentes (`vecinos` ya llega ordenado así): recortar por fuentes a secas
+  // dejaba fuera a dos de los cinco progenitores de Heracles, citados una vez.
   const dibujados = useMemo(() => {
     if (vecinos.length <= cupo) return vecinos
     const familia = vecinos.filter((v) => FAMILIA.has(v.grupo))
@@ -364,8 +367,8 @@ export default function Red({ ir, centro, onCentro, onVerMapa, enMapa }: Props) 
             {vecinos.length > dibujados.length && (
               <>
                 {' '}
-                · se dibujan <span className="cifra">{dibujados.length}</span>: la familia y
-                las mejor atestiguadas. La lista las trae todas
+                · se dibujan <span className="cifra">{dibujados.length}</span>: progenitores,
+                parejas y hermanos, y después las mejor atestiguadas. La lista las trae todas
               </>
             )}
           </p>

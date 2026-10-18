@@ -392,8 +392,10 @@ navegador pide solo al abrir la vista. Grafo ego radial en SVG, sin dependencias
 - `dis` (rúbrica) solo para contradicciones de `genealogia`/`autoria_muerte`: las de
   `ubicacion` discuten dónde, no entre quiénes, y teñían casi todas las aristas de Heracles.
 - Citas internadas en una tabla (`citas` + índices): repetidas por arista eran 1,4 MB.
-- Si no caben todas las figuras en el anillo, **la familia entra siempre** y el resto por
-  fuentes: recortar por fuentes a secas dejaba fuera progenitores citados una vez.
+- Si no caben todas las figuras en el anillo, **progenitores, parejas y hermanos entran
+  siempre** y el resto por fuentes: recortar por fuentes a secas dejaba fuera progenitores
+  citados una vez. La descendencia no tiene prioridad: los 63 hijos de Heracles llenaban el
+  anillo y echaban todo el grupo de muerte y guerra.
 
 ### Enlaces a los textos y buscador por nombre
 
