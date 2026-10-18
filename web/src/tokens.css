@@ -1,0 +1,70 @@
+:root {
+  --color-canvas: #f3f3f0;
+  --color-surface-1: #fbfbf9;
+  --color-surface-2: #e8e8e3;
+  --color-ink: #16181d;
+  --color-ink-2: #3d424b;
+  --color-ink-muted: #5c616b;
+  --color-hairline: #d4d4cd;
+  --color-link: #2f5288;
+  --color-rubrica: #b3301d;
+  --color-primary: #16181d;
+  --color-on-primary: #fbfbf9;
+  --color-tinta-1: #8fa6c4;
+  --color-tinta-2: #5b7aa6;
+  --color-tinta-3: #2f5288;
+  --color-tinta-4: #13305e;
+  --color-dark-canvas: #15171c;
+  --color-dark-surface-1: #1c1f25;
+  --color-dark-surface-2: #272b33;
+  --color-dark-ink: #ecebe6;
+  --color-dark-ink-2: #c4c6cc;
+  --color-dark-ink-muted: #9ca1ab;
+  --color-dark-hairline: #343944;
+  --color-dark-link: #8eacd6;
+  --color-dark-rubrica: #ec6b54;
+  --color-dark-primary: #c4c6cc;
+  --color-dark-on-primary: #15171c;
+  --color-dark-tinta-1: #3f5f8f;
+  --color-dark-tinta-2: #5f82b4;
+  --color-dark-tinta-3: #8eacd6;
+  --color-dark-tinta-4: #c3d4ec;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --radius-none: 0px;
+  --radius-pill: 9999px;
+  --text-brand-family: Alegreya;
+  --text-brand-size: 22px;
+  --text-brand-weight: 700;
+  --text-brand-leading: 1.1;
+  --text-brand-tracking: -0.01em;
+  --text-heading-family: Alegreya;
+  --text-heading-size: 18px;
+  --text-heading-weight: 600;
+  --text-heading-leading: 1.25;
+  --text-heading-tracking: 0;
+  --text-body-family: "Alegreya Sans";
+  --text-body-size: 15px;
+  --text-body-weight: 400;
+  --text-body-leading: 1.45;
+  --text-body-tracking: 0;
+  --text-small-family: "Alegreya Sans";
+  --text-small-size: 13px;
+  --text-small-weight: 400;
+  --text-small-leading: 1.4;
+  --text-small-tracking: 0;
+  --text-label-family: "Alegreya Sans";
+  --text-label-size: 12px;
+  --text-label-weight: 500;
+  --text-label-leading: 1.3;
+  --text-label-tracking: 0;
+}
+
+.text-brand { font-family: var(--text-brand-family); font-size: var(--text-brand-size); font-weight: var(--text-brand-weight); line-height: var(--text-brand-leading); letter-spacing: var(--text-brand-tracking); }
+.text-heading { font-family: var(--text-heading-family); font-size: var(--text-heading-size); font-weight: var(--text-heading-weight); line-height: var(--text-heading-leading); letter-spacing: var(--text-heading-tracking); }
+.text-body { font-family: var(--text-body-family); font-size: var(--text-body-size); font-weight: var(--text-body-weight); line-height: var(--text-body-leading); letter-spacing: var(--text-body-tracking); }
+.text-small { font-family: var(--text-small-family); font-size: var(--text-small-size); font-weight: var(--text-small-weight); line-height: var(--text-small-leading); letter-spacing: var(--text-small-tracking); }
+.text-label { font-family: var(--text-label-family); font-size: var(--text-label-size); font-weight: var(--text-label-weight); line-height: var(--text-label-leading); letter-spacing: var(--text-label-tracking); }

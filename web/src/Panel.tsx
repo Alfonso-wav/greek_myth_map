@@ -1,3 +1,5 @@
+import { useEffect } from 'react'
+
 import { anioDe, formatearAnio, type Indice } from './datos'
 import type { Afirmacion, Autoridad, Contradiccion } from './types'
 
@@ -18,6 +20,16 @@ export default function Panel({
   autoridad,
   onCerrar,
 }: Props) {
+  // Escape cierra el panel, salvo que el cajón móvil esté abierto encima: ahí
+  // Escape es del cajón
+  useEffect(() => {
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !document.querySelector('.app.cajon-abierto')) onCerrar()
+    }
+    addEventListener('keydown', tecla)
+    return () => removeEventListener('keydown', tecla)
+  }, [onCerrar])
+
   const lugar = idx.lugares.get(lugarId)
   if (!lugar) return null
 
@@ -44,14 +56,16 @@ export default function Panel({
     .join(' · ')
 
   return (
-    <aside className="panel" aria-label={`detalle de ${lugar.n}`}>
+    <aside className="panel" aria-label={`Detalle de ${lugar.n}`}>
       <header>
-        <div style={{ flex: 1 }}>
-          <h3>{lugar.n}</h3>
+        <div>
+          <h2>{lugar.n}</h2>
           <div className="sub">
             {detalle}
             {' · '}
-            {lugar.lat.toFixed(3)}, {lugar.lng.toFixed(3)}
+            <span className="cifra">
+              {lugar.lat.toFixed(3)}, {lugar.lng.toFixed(3)}
+            </span>
           </div>
           {lugar.enl.length > 0 && (
             <div className="enlaces">
@@ -63,7 +77,7 @@ export default function Panel({
             </div>
           )}
         </div>
-        <button className="cerrar" onClick={onCerrar} aria-label="cerrar">
+        <button className="cerrar" onClick={onCerrar} aria-label="Cerrar detalle">
           ×
         </button>
       </header>
@@ -85,7 +99,7 @@ export default function Panel({
 
         {disputas.length > 0 && (
           <>
-            <p className="aviso" style={{ borderLeftColor: 'var(--acento)' }}>
+            <p className="aviso disputa">
               <b>
                 {disputas.length} {disputas.length === 1 ? 'hecho situado' : 'hechos situados'}{' '}
                 también en otro lugar
@@ -97,24 +111,24 @@ export default function Panel({
               <table>
                 <thead>
                   <tr>
-                    <th>hecho</th>
-                    <th>la otra versión lo sitúa en</th>
+                    <th>Hecho</th>
+                    <th>La otra versión lo sitúa en</th>
                   </tr>
                 </thead>
                 <tbody>
                   {disputas.slice(0, 8).map(({ c, otro }) => (
                     <tr key={c.id}>
-                      <td style={{ whiteSpace: 'normal' }}>
+                      <td>
                         {c.sobre} · {c.pe}
                       </td>
-                      <td style={{ whiteSpace: 'normal' }}>
+                      <td>
                         {(otro != null && idx.lugares.get(otro)?.n) || '—'}
                       </td>
                     </tr>
                   ))}
                   {disputas.length > 8 && (
                     <tr>
-                      <td colSpan={2} style={{ color: 'var(--tinta-apagada)' }}>
+                      <td colSpan={2} className="mas">
                         y {disputas.length - 8} más
                       </td>
                     </tr>
@@ -126,7 +140,10 @@ export default function Panel({
         )}
 
         {propias.length === 0 ? (
-          <p className="aviso">Nada atestiguado aquí en la generación seleccionada.</p>
+          <p className="aviso vacio">
+            Nada atestiguado aquí con la generación y los filtros elegidos. Prueba a mover el eje o a
+            activar «Acumular generaciones anteriores».
+          </p>
         ) : (
           propias.map((a, i) => {
             const ag = idx.agentes.get(a.s)
@@ -149,9 +166,13 @@ export default function Panel({
                       {ag?.n ?? '—'}
                     </span>
                   )}
-                  {ag?.grc && <span className="rol">{ag.grc}</span>}
+                  {ag?.grc && (
+                    <span className="grc" lang="grc" translate="no">
+                      {ag.grc}
+                    </span>
+                  )}
                   <span className="gen">
-                    {ag?.div ? 'divinidad' : `gen ${a.g > 0 ? '+' : ''}${a.g}`}
+                    {ag?.div ? 'Divinidad' : `Gen. ${a.g > 0 ? '+' : ''}${a.g}`}
                     {ag?.div ? '' : ` · ${formatearAnio(anio)}`}
                   </span>
                 </div>
@@ -161,7 +182,7 @@ export default function Panel({
                   {a.rol ? <span className="rol"> ({a.rol} este lugar)</span> : null}
                 </div>
 
-                {(a.inc || a.duda || a.impl || a.alt) === 1 || a.inc || a.duda || a.impl || a.alt ? (
+                {a.inc || a.duda || a.impl || a.alt ? (
                   <div className="marcas">
                     {a.duda === 1 && <em>la fuente duda</em>}
                     {a.inc === 1 && <em>dato incierto</em>}
@@ -183,7 +204,7 @@ export default function Panel({
                             href={c.u}
                             target="_blank"
                             rel="noopener noreferrer"
-                            title="leer el pasaje en Perseus / Scaife"
+                            title="Leer el pasaje en Perseus / Scaife"
                           >
                             {c.t}
                           </a>
@@ -193,13 +214,14 @@ export default function Panel({
                       </li>
                     ))}
                     {a.nci > a.ci.length && (
-                      <li style={{ listStyle: 'none' }}>
-                        y {a.nci - a.ci.length} pasaje(s) más
+                      <li className="mas">
+                        y {a.nci - a.ci.length}{' '}
+                        {a.nci - a.ci.length === 1 ? 'pasaje más' : 'pasajes más'}
                       </li>
                     )}
                   </ul>
                 ) : (
-                  <p className="sin-cita">sin pasaje textual que lo atestigüe</p>
+                  <p className="sin-cita">Sin pasaje textual que lo atestigüe</p>
                 )}
               </article>
             )

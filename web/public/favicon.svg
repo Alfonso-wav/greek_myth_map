@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Π de περιήγησις en tinta, con el punto de rúbrica que marca la disputa -->
+  <rect width="32" height="32" fill="#16181d"/>
+  <path d="M7 8h18v2.6h-2.6V25h-3.2V10.6h-6.4V25H9.6V10.6H7z" fill="#fbfbf9"/>
+  <circle cx="25" cy="24" r="3" fill="#ec6b54"/>
+</svg>

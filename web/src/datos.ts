@@ -80,8 +80,8 @@ export async function cargar(): Promise<Datos> {
   const r = await fetch(`${import.meta.env.BASE_URL}data/greek.json`)
   if (!r.ok) {
     throw new Error(
-      `no se pudo cargar data/greek.json (HTTP ${r.status}). ` +
-        'Genera el fichero con `uv run greek export-web` en la raiz del proyecto.',
+      `El servidor respondió HTTP ${r.status} al pedir data/greek.json. En local, ` +
+        'genéralo con «uv run greek export-web» desde la raíz del proyecto y recarga.',
     )
   }
   return (await r.json()) as Datos
@@ -94,6 +94,11 @@ export function anioDe(a: Autoridad, gen: number, sinFecha: number): number | nu
   return v ?? null
 }
 
+/** Primera letra en mayúscula: las facetas llegan en minúscula del export. */
+export function mayuscula(s: string): string {
+  return s.charAt(0).toLocaleUpperCase('es') + s.slice(1)
+}
+
 export function formatearAnio(anio: number | null): string {
   if (anio == null) return 'sin fecha'
   return `${Math.abs(anio)} a.C.`
@@ -101,25 +106,25 @@ export function formatearAnio(anio: number | null): string {
 
 /** Etiqueta de la generacion: numero, o su nombre si es un hito reconocible. */
 export function etiquetaGeneracion(gen: number, sinFecha: number): string {
-  if (gen <= sinFecha) return 'teogonia'
+  if (gen <= sinFecha) return 'Teogonía'
   const hitos: Record<number, string> = {
-    [-5]: 'Diluvio de Deucalion',
-    [-4]: 'Cadmo · Danao',
+    [-5]: 'Diluvio de Deucalión',
+    [-4]: 'Cadmo y Dánao',
     [-3]: 'Perseo',
     [-1]: 'Teseo',
-    0: 'Heracles · Argonautas',
-    1: 'Epigonos · rapto de Helena',
+    0: 'Heracles y los Argonautas',
+    1: 'Epígonos y rapto de Helena',
     2: 'Guerra de Troya',
-    3: 'los retornos',
-    4: 'retorno de los Heraclidas',
+    3: 'Los retornos',
+    4: 'Retorno de los Heraclidas',
   }
-  return hitos[gen] ?? `generacion ${gen > 0 ? '+' : ''}${gen}`
+  return hitos[gen] ?? `Generación ${gen > 0 ? '+' : ''}${gen}`
 }
 
-/** Paso de la rampa ordinal sepia (1-4) para un recuento de afirmaciones.
+/** Paso de la rampa ordinal de tinta (1-4) para un recuento de afirmaciones.
  *  Cuatro y no cinco: el quinto paso era el mas claro y no despegaba de la
  *  superficie (1,30:1 frente al suelo de 2:1), asi que esos marcadores
- *  desaparecian contra el pergamino. */
+ *  desaparecian contra el papel. */
 export function pasoEscala(n: number): 1 | 2 | 3 | 4 {
   if (n >= 20) return 4
   if (n >= 7) return 3

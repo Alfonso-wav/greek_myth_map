@@ -3,8 +3,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { anioDe, etiquetaGeneracion, formatearAnio, type Indice } from './datos'
 import type { Autoridad } from './types'
 
-const ALTO = 54
-const PAD_ABAJO = 13
+const ALTO = 56
+const PAD_ABAJO = 15
 const HUECO = 2 // separacion de 2px entre barras: la exige la guia de marcas
 const RADIO = 4 // extremo de dato redondeado 4px, anclado a la linea base
 
@@ -81,88 +81,91 @@ export default function Tiempo({
   const iSinFecha = barras.findIndex((b) => b.g > gen_sin_fecha)
 
   return (
-    <section className="tiempo" aria-label="eje temporal" ref={caja}>
+    <section className="tiempo" aria-label="Eje de generaciones" ref={caja}>
       <div className="encabezado">
-        <span className="titulo">afirmaciones por generacion</span>
-        <span style={{ fontSize: 12.5, color: 'var(--tinta-2)' }}>
-          {etiquetaGeneracion(activo, gen_sin_fecha)}
-          {encima != null && encima !== gen ? ' (al pasar)' : ''} ·{' '}
-          <span className="cifra">{nEnBarra.toLocaleString('es')}</span>
-        </span>
-        <span className="anio">
+        <div className="hito">
+          <span className="rotulo">
+            {encima != null && encima !== gen ? 'Al pasar' : 'Generación elegida'}
+          </span>
+          <p>
+            {etiquetaGeneracion(activo, gen_sin_fecha)}{' '}
+            <span className="cifra">
+              · {nEnBarra.toLocaleString('es')} afirmaci{nEnBarra === 1 ? 'ón' : 'ones'}
+            </span>
+          </p>
+        </div>
+        <div className="anio">
           <b>{formatearAnio(anio)}</b>
           <span>
-            {anio == null
-              ? 'la teogonia no se datea, a proposito'
-              : `segun ${autoridad.nombre}`}
+            {anio == null ? 'La teogonía no se data, a propósito' : `según ${autoridad.nombre}`}
           </span>
-        </span>
+        </div>
       </div>
 
-      <svg
-        className="histo"
-        width={ancho}
-        height={ALTO}
-        viewBox={`0 0 ${ancho} ${ALTO}`}
-        role="img"
-        aria-label={`densidad de afirmaciones por generacion, de ${gen_min} a ${gen_max}`}
-      >
-        {/* zona sin fecha: no es que falte el dato, es que no se datea */}
-        {iSinFecha > 0 && (
-          <>
-            <rect
-              className="zona-sinfecha"
-              x={0}
-              y={0}
-              width={iSinFecha * paso - HUECO / 2}
-              height={ALTO - PAD_ABAJO}
-            />
-            <text className="tick" x={5} y={11}>
-              teogonía · no se datea
-            </text>
-          </>
-        )}
-        {barras.map((b, i) => {
-          const h = b.n === 0 ? 0 : Math.max(2, ((ALTO - PAD_ABAJO - 2) * b.n) / max)
-          const x = i * paso + HUECO / 2
-          const y = ALTO - PAD_ABAJO - h
-          const sel = b.g === gen
-          const enRango = acumulado ? b.g <= gen : sel
-          return (
-            <g key={b.g}>
-              <path
-                d={barra(x, y, wBarra, h)}
-                className={sel ? 'barra-sel' : enRango ? 'barra-act' : 'barra-fondo'}
-              />
-              {/* diana mas grande que la marca, como pide la guia de interaccion */}
+      <div className="histo-caja">
+        <svg
+          className="histo"
+          width={ancho}
+          height={ALTO}
+          viewBox={`0 0 ${ancho} ${ALTO}`}
+          aria-hidden="true"
+        >
+          {/* zona sin fecha: no es que falte el dato, es que no se data */}
+          {iSinFecha > 0 && (
+            <>
               <rect
-                className="diana"
-                x={i * paso}
+                className="zona-sinfecha"
+                x={0}
                 y={0}
-                width={paso}
-                height={ALTO}
-                onMouseEnter={() => setEncima(b.g)}
-                onMouseLeave={() => setEncima(null)}
-                onClick={() => onGen(b.g)}
+                width={iSinFecha * paso - HUECO / 2}
+                height={ALTO - PAD_ABAJO}
               />
-            </g>
-          )
-        })}
-        <line className="eje" x1={0} y1={ALTO - PAD_ABAJO} x2={ancho} y2={ALTO - PAD_ABAJO} />
-        {barras.map((b, i) =>
-          b.g % 2 === 0 ? (
-            <text
-              key={`t${b.g}`}
-              className="tick"
-              x={i * paso + paso / 2}
-              y={ALTO - 3}
-              textAnchor="middle"
-            >
-              {b.g}
-            </text>
-          ) : null,
-        )}
-      </svg>
+              <text className="tick" x={6} y={14}>
+                Teogonía, sin fecha
+              </text>
+            </>
+          )}
+          {barras.map((b, i) => {
+            const h = b.n === 0 ? 0 : Math.max(2, ((ALTO - PAD_ABAJO - 2) * b.n) / max)
+            const x = i * paso + HUECO / 2
+            const y = ALTO - PAD_ABAJO - h
+            const sel = b.g === gen
+            const enRango = acumulado ? b.g <= gen : sel
+            const clase =
+              sel || b.g === encima ? 'barra-sel' : enRango ? 'barra-act' : 'barra-fondo'
+            return <path key={b.g} d={barra(x, y, wBarra, h)} className={clase} />
+          })}
+          <line className="eje" x1={0} y1={ALTO - PAD_ABAJO} x2={ancho} y2={ALTO - PAD_ABAJO} />
+          {barras.map((b, i) =>
+            b.g % 2 === 0 ? (
+              <text
+                key={`t${b.g}`}
+                className="tick"
+                x={i * paso + paso / 2}
+                y={ALTO - 1}
+                textAnchor="middle"
+              >
+                {b.g}
+              </text>
+            ) : null,
+          )}
+        </svg>
+        {/* Dianas: una columna entera por generación, mayor que la barra (guía de
+            interacción). Son botones reales pero fuera del tabulador: el slider de
+            abajo ya da el mismo control por teclado. */}
+        <div className="dianas">
+          {barras.map((b) => (
+            <button
+              key={b.g}
+              tabIndex={-1}
+              aria-label={`${etiquetaGeneracion(b.g, gen_sin_fecha)}: ${b.n} afirmaciones`}
+              onMouseEnter={() => setEncima(b.g)}
+              onMouseLeave={() => setEncima(null)}
+              onClick={() => onGen(b.g)}
+            />
+          ))}
+        </div>
+      </div>
 
       <input
         type="range"
@@ -171,7 +174,7 @@ export default function Tiempo({
         step={1}
         value={gen}
         onChange={(e) => onGen(Number(e.target.value))}
-        aria-label="generacion mitica"
+        aria-label="Generación mítica"
         aria-valuetext={`${etiquetaGeneracion(gen, gen_sin_fecha)}, ${formatearAnio(anio)}`}
       />
 
@@ -185,8 +188,8 @@ export default function Tiempo({
           {nDivinas > 0 ? (
             <>
               {' '}
-              (con <span className="cifra">{nDivinas.toLocaleString('es')}</span> de divinidades,
-              que no están en ninguna generación)
+              (<span className="cifra">{nDivinas.toLocaleString('es')}</span> de divinidades, que no
+              tienen generación)
             </>
           ) : acumulado ? (
             ', acumuladas'
@@ -195,11 +198,16 @@ export default function Tiempo({
         <span>
           <span className="cifra">{nDisputas.toLocaleString('es')}</span> ubicaciones en disputa
         </span>
-        <span style={{ marginLeft: 'auto' }}>
+        <span className="fuente-anio">
           {autoridad.nombre} sitúa Troya en {Math.abs(autoridad.troya)} a.C. ·{' '}
           {idx.meta.anios_por_generacion} años por generación
         </span>
       </div>
+      <p className="pie-movil">
+        <span className="cifra">{nLugares.toLocaleString('es')}</span> lugares ·{' '}
+        <span className="cifra">{nAfirmaciones.toLocaleString('es')}</span> afirmaciones ·{' '}
+        <span className="cifra">{nDisputas.toLocaleString('es')}</span> en disputa
+      </p>
     </section>
   )
 }

@@ -1,16 +1,33 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import Mapa from './Mapa'
 import Panel from './Panel'
 import Tiempo from './Tiempo'
-import { cargar, CORTES, indexar, visibles, type Indice } from './datos'
+import { cargar, CORTES, indexar, mayuscula, visibles, type Indice } from './datos'
 
 type Tema = 'auto' | 'light' | 'dark'
+const SIGUIENTE_TEMA: Record<Tema, Tema> = { auto: 'light', light: 'dark', dark: 'auto' }
+const NOMBRE_TEMA: Record<Tema, string> = { auto: 'el del sistema', light: 'claro', dark: 'oscuro' }
+// mismos valores que colors.canvas / colors.dark-canvas de DESIGN.md
+const COLOR_BARRA: Record<'light' | 'dark', string> = { light: '#f3f3f0', dark: '#15171c' }
 
 /** Estado en el hash, para que una vista concreta sea un enlace compartible:
  *  #g=2&l=43391&a=Eratostenes&acum=1 */
 function leerHash(): URLSearchParams {
   return new URLSearchParams(location.hash.replace(/^#/, ''))
+}
+
+/** Por debajo de 900 px el lateral es un cajón. Coincide con el breakpoint de styles.css. */
+function useEstrecho(): boolean {
+  const consulta = '(max-width: 900px)'
+  const [estrecho, setEstrecho] = useState(() => matchMedia(consulta).matches)
+  useEffect(() => {
+    const mq = matchMedia(consulta)
+    const cambio = () => setEstrecho(mq.matches)
+    mq.addEventListener('change', cambio)
+    return () => mq.removeEventListener('change', cambio)
+  }, [])
+  return estrecho
 }
 
 export default function App() {
@@ -35,6 +52,11 @@ export default function App() {
   )
   const [busqueda, setBusqueda] = useState(inicial.get('q') ?? '')
 
+  const estrecho = useEstrecho()
+  const [cajon, setCajon] = useState(false)
+  const lateral = useRef<HTMLElement>(null)
+  const botonCajon = useRef<HTMLButtonElement>(null)
+
   const alternar = useCallback(
     (set: Set<string>, poner: (s: Set<string>) => void) => (clave: string) => {
       const copia = new Set(set)
@@ -52,9 +74,38 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    if (tema === 'auto') document.documentElement.removeAttribute('data-theme')
-    else document.documentElement.setAttribute('data-theme', tema)
+    const raiz = document.documentElement
+    if (tema === 'auto') raiz.removeAttribute('data-theme')
+    else raiz.setAttribute('data-theme', tema)
+    // las <meta theme-color> van por media query: con el tema forzado hay que
+    // pisarlas, o la barra del navegador queda del color del otro esquema
+    for (const meta of document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]')) {
+      const propio = meta.media.includes('dark') ? 'dark' : 'light'
+      meta.content = COLOR_BARRA[tema === 'auto' ? propio : tema]
+    }
   }, [tema])
+
+  // Cajón cerrado = fuera del árbol de foco y de accesibilidad (`inert`), no solo
+  // apartado con transform: un cajón fuera de pantalla con controles tabulables es
+  // una trampa para el teclado.
+  useEffect(() => {
+    lateral.current?.toggleAttribute('inert', estrecho && !cajon)
+  }, [estrecho, cajon])
+
+  useEffect(() => {
+    if (!cajon) return
+    lateral.current?.querySelector<HTMLElement>('input, button, select')?.focus()
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') cerrarCajon()
+    }
+    addEventListener('keydown', tecla)
+    return () => removeEventListener('keydown', tecla)
+  }, [cajon])
+
+  function cerrarCajon() {
+    setCajon(false)
+    botonCajon.current?.focus()
+  }
 
   // replaceState y no location.hash: asi no llena el historial con cada paso
   // del slider
@@ -111,198 +162,274 @@ export default function App() {
   }, [idx, gen, acumulado, conDisputas, visible])
 
   const onSeleccion = useCallback((id: number | null) => setSeleccion(id), [])
+  const cerrarPanel = useCallback(() => setSeleccion(null), [])
+
+  // lo que difiere de la vista por defecto, para el botón «Filtros» del móvil
+  const nActivos =
+    papeles.size +
+    categorias.size +
+    (busqueda.trim() ? 1 : 0) +
+    (acumulado ? 1 : 0) +
+    (conDivinidades ? 0 : 1) +
+    (conDisputas ? 0 : 1)
 
   if (error) {
     return (
-      <div className="cargando">
-        <b>no hay datos</b>
-        <p style={{ maxWidth: 460, fontSize: 13 }}>{error}</p>
+      <div className="cargando" role="alert">
+        <h1>No se pudieron cargar los datos</h1>
+        <p>{error}</p>
       </div>
     )
   }
-  if (!idx || !visible || !autoridad) return <div className="cargando">cargando el mito…</div>
+  if (!idx || !visible || !autoridad) {
+    return (
+      <div className="cargando" aria-busy="true">
+        <h1 translate="no">Periégesis</h1>
+        <p>Cargando el mito…</p>
+      </div>
+    )
+  }
 
   return (
-    <div className="app">
-      <header className="barra">
-        <div className="marca">
-          <b>greek</b>
-          <span>el mito griego sobre el mapa, generación a generación</span>
-        </div>
-
-        <label className="campo">
-          <span>cronología según</span>
-          <select
-            value={autoridad.nombre}
-            onChange={(e) => setAutoridad(e.target.value)}
-            title="Las 11 autoridades no discrepan en el orden de los hechos, solo en dónde cae el ancla troyana"
-          >
-            {idx.autoridades.map((a) => (
-              <option key={a.nombre} value={a.nombre}>
-                {a.nombre} — Troya {Math.abs(a.troya)} a.C.
-                {a.preferida ? ' ★' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <div className="conmutadores">
-          <button
-            className="conmutador"
-            aria-pressed={acumulado}
-            onClick={() => setAcumulado((v) => !v)}
-            title="Mostrar todo lo anterior a la generación elegida, en vez de solo esa"
-          >
-            acumulado
-          </button>
-          <button
-            className="conmutador"
-            aria-pressed={conDivinidades}
-            onClick={() => setConDivinidades((v) => !v)}
-            title="Las divinidades no pertenecen a una generación: la paternidad divina no fecha nada"
-          >
-            <i className="punto" aria-hidden="true" />
-            divinidades
-          </button>
-          <button
-            className="conmutador"
-            aria-pressed={conDisputas}
-            onClick={() => setConDisputas((v) => !v)}
-            title="Hechos que dos fuentes sitúan en lugares distintos"
-          >
-            <i className="punto verde" aria-hidden="true" />
-            en disputa
-          </button>
-          <button
-            className="conmutador"
-            onClick={() => setTema(tema === 'dark' ? 'light' : 'dark')}
-            aria-label="cambiar tema"
-            title="claro / oscuro"
-          >
-            {tema === 'dark' ? '☾' : '☀'}
-          </button>
-        </div>
+    <div className={`app${cajon ? ' cajon-abierto' : ''}`}>
+      <header className="barra-movil">
+        <span className="nombre" translate="no">
+          Periégesis
+        </span>
+        <button
+          ref={botonCajon}
+          className="boton"
+          aria-expanded={cajon}
+          aria-controls="lateral"
+          onClick={() => setCajon(true)}
+        >
+          Filtros
+          {nActivos > 0 && (
+            <b>
+              {' · '}
+              {nActivos}
+              <span className="solo-lector"> activos</span>
+            </b>
+          )}
+        </button>
       </header>
 
-      {/* Dos ejes, etiquetados: 'quien' se deriva de las fuentes y 'que' sale de
-          predicado.categoria. Un chip apagado no filtra; el conjunto vacio
-          significa "todo", no "nada". */}
-      <div className="filtros">
-        <fieldset className="buscador">
-          <legend>nombre</legend>
+      <aside id="lateral" className="lateral" ref={lateral} aria-label="Búsqueda y filtros">
+        <div className="marca">
+          <div>
+            <h1 translate="no">Periégesis</h1>
+            <p>El mito griego lugar por lugar: dónde sitúa cada fuente antigua cada hecho.</p>
+          </div>
+          <button className="boton cajon-cerrar" onClick={cerrarCajon}>
+            Ver mapa
+          </button>
+        </div>
+
+        <div className="campo">
+          <label htmlFor="busqueda">
+            <span className="rotulo">Buscar figura o lugar</span>
+          </label>
           <input
+            id="busqueda"
             type="search"
+            name="q"
+            autoComplete="off"
+            spellCheck={false}
             value={busqueda}
             placeholder="Circe, Kirke, Κίρκη, Ítaca…"
             onChange={(e) => setBusqueda(e.target.value)}
-            aria-label="buscar por nombre de figura o de lugar"
           />
           {busqueda.trim() && (
-            <span className="resultado">
-              {visible.lugares.length} lugares · {visible.afirmaciones.length} afirmaciones
+            <span className="resultado" aria-live="polite">
+              <span className="cifra">{visible.lugares.length.toLocaleString('es')}</span> lugares
+              · <span className="cifra">{visible.afirmaciones.length.toLocaleString('es')}</span>{' '}
+              afirmaciones
             </span>
           )}
-        </fieldset>
+        </div>
 
-        <fieldset>
-          <legend>quién</legend>
-          {idx.meta.papeles.map((f) => (
-            <button
-              key={f.clave}
-              className="chip"
-              aria-pressed={papeles.has(f.clave)}
-              onClick={() => alternar(papeles, setPapeles)(f.clave)}
-              title={`${f.n} figuras con este papel entre las visibles del corpus`}
-            >
-              {f.etiqueta} <b>{f.n}</b>
-            </button>
-          ))}
-          {papeles.size > 0 && (
-            <button className="chip limpiar" onClick={() => setPapeles(new Set())}>
-              quitar
-            </button>
-          )}
-        </fieldset>
-
-        <fieldset>
-          <legend>qué</legend>
-          {idx.meta.categorias.map((f) => (
-            <button
-              key={f.clave}
-              className="chip"
-              aria-pressed={categorias.has(f.clave)}
-              onClick={() => alternar(categorias, setCategorias)(f.clave)}
-              title={`${f.n} afirmaciones de este tipo`}
-            >
-              {f.etiqueta} <b>{f.n}</b>
-            </button>
-          ))}
-          {categorias.size > 0 && (
-            <button className="chip limpiar" onClick={() => setCategorias(new Set())}>
-              quitar
-            </button>
-          )}
-        </fieldset>
-      </div>
-
-      <div className="lienzo">
-        <Mapa
-          idx={idx}
-          visible={visible}
-          contradicciones={disputas}
-          seleccion={seleccion}
-          onSeleccion={onSeleccion}
-        />
-
-        <div className="leyenda">
-          <h4>afirmaciones por lugar</h4>
-          <div className="escala">
-            {CORTES.map((corte, i) => (
-              <i
-                key={corte}
-                style={{ background: `var(--m${i + 1})` }}
-                title={`${corte} afirmaciones`}
-              />
+        <label className="campo">
+          <span>Cronología según</span>
+          <select value={autoridad.nombre} onChange={(e) => setAutoridad(e.target.value)}>
+            {idx.autoridades.map((a) => (
+              <option key={a.nombre} value={a.nombre}>
+                {a.nombre} · {Math.abs(a.troya)} a.C.{a.preferida ? ' · por defecto' : ''}
+              </option>
             ))}
-          </div>
-          <div className="escala-rotulos">
-            {CORTES.map((corte) => (
-              <span key={corte}>{corte}</span>
-            ))}
-          </div>
-          <div className="fila">
-            <i className="marca-linea" aria-hidden="true" />
-            <span>mismo hecho, dos lugares</span>
-          </div>
-          <div className="fila">
-            <i className="marca-hueca" aria-hidden="true" />
-            <span>coordenada aproximada</span>
+          </select>
+          <span className="ayuda">
+            El año es el de la caída de Troya. Las once autoridades coinciden en el orden de los
+            hechos; solo discrepan en dónde cae Troya.
+          </span>
+        </label>
+
+        <div className="grupo" role="group" aria-labelledby="rotulo-vista">
+          <span className="rotulo" id="rotulo-vista">
+            Vista
+          </span>
+          <div className="conmutadores">
+            <button
+              className="conmutador"
+              aria-pressed={acumulado}
+              onClick={() => setAcumulado((v) => !v)}
+            >
+              Acumular generaciones anteriores
+            </button>
+            <button
+              className="conmutador"
+              aria-pressed={conDivinidades}
+              onClick={() => setConDivinidades((v) => !v)}
+            >
+              <i className="muestra" aria-hidden="true" />
+              Divinidades, sin generación
+            </button>
+            <button
+              className="conmutador"
+              aria-pressed={conDisputas}
+              onClick={() => setConDisputas((v) => !v)}
+            >
+              <i className="muestra rubrica" aria-hidden="true" />
+              Hechos en disputa
+            </button>
           </div>
         </div>
 
-        {seleccion != null && (
-          <Panel
-            idx={idx}
-            lugarId={seleccion}
-            afirmaciones={visible.afirmaciones}
-            contradicciones={disputas}
-            autoridad={autoridad}
-            onCerrar={() => setSeleccion(null)}
-          />
-        )}
-      </div>
+        {/* Dos ejes, etiquetados: 'quién' se deriva de las fuentes y 'qué' sale de
+            predicado.categoria. Un chip apagado no filtra; el conjunto vacío
+            significa "todo", no "nada". */}
+        <fieldset className="grupo">
+          <legend>Quién protagoniza</legend>
+          <div className="chips">
+            {idx.meta.papeles.map((f) => (
+              <button
+                key={f.clave}
+                className="chip"
+                aria-pressed={papeles.has(f.clave)}
+                onClick={() => alternar(papeles, setPapeles)(f.clave)}
+              >
+                {mayuscula(f.etiqueta)} <b>{f.n.toLocaleString('es')}</b>
+              </button>
+            ))}
+            {papeles.size > 0 && (
+              <button className="chip limpiar" onClick={() => setPapeles(new Set())}>
+                Quitar
+              </button>
+            )}
+          </div>
+        </fieldset>
 
-      <Tiempo
-        idx={idx}
-        gen={gen}
-        autoridad={autoridad}
-        acumulado={acumulado}
-        nLugares={visible.lugares.length}
-        nAfirmaciones={visible.afirmaciones.length}
-        nDisputas={disputas.length}
-        nDivinas={visible.nDivinas}
-        onGen={setGen}
-      />
+        <fieldset className="grupo">
+          <legend>Qué clase de hecho</legend>
+          <div className="chips">
+            {idx.meta.categorias.map((f) => (
+              <button
+                key={f.clave}
+                className="chip"
+                aria-pressed={categorias.has(f.clave)}
+                onClick={() => alternar(categorias, setCategorias)(f.clave)}
+              >
+                {mayuscula(f.etiqueta)} <b>{f.n.toLocaleString('es')}</b>
+              </button>
+            ))}
+            {categorias.size > 0 && (
+              <button className="chip limpiar" onClick={() => setCategorias(new Set())}>
+                Quitar
+              </button>
+            )}
+          </div>
+        </fieldset>
+
+        <footer className="pie-lateral">
+          <button className="boton" onClick={() => setTema(SIGUIENTE_TEMA[tema])}>
+            Tema: {NOMBRE_TEMA[tema]}
+          </button>
+          <span>
+            Datos de MANTO (CC BY-NC), Pleiades (CC BY) y ToposText. Mapa © OpenStreetMap.
+          </span>
+        </footer>
+      </aside>
+
+      <main className="lienzo-col">
+        <div className="lienzo">
+          <Mapa
+            idx={idx}
+            visible={visible}
+            contradicciones={disputas}
+            seleccion={seleccion}
+            onSeleccion={onSeleccion}
+          />
+
+          <div className="leyenda">
+            <h2>Afirmaciones por lugar</h2>
+            <div className="escala">
+              {CORTES.map((corte, i) => (
+                <span key={corte}>
+                  <i style={{ background: `var(--m${i + 1})` }} aria-hidden="true" />
+                  {corte}
+                </span>
+              ))}
+            </div>
+            {conDisputas && (
+              <div className="fila">
+                <i className="marca-linea" aria-hidden="true" />
+                <span>Mismo hecho, dos lugares</span>
+              </div>
+            )}
+            <div className="fila aprox">
+              <i className="marca-hueca" aria-hidden="true" />
+              <span>Coordenada aproximada</span>
+            </div>
+          </div>
+
+          {visible.lugares.length === 0 && (
+            <div className="sin-resultados" role="status">
+              <p>
+                {busqueda.trim()
+                  ? `Nada coincide con «${busqueda.trim()}» en esta generación.`
+                  : 'Ningún lugar cumple a la vez todos los filtros en esta generación.'}
+              </p>
+              {busqueda.trim() ? (
+                <button className="boton" onClick={() => setBusqueda('')}>
+                  Quitar la búsqueda
+                </button>
+              ) : (
+                <button
+                  className="boton"
+                  onClick={() => {
+                    setPapeles(new Set())
+                    setCategorias(new Set())
+                  }}
+                >
+                  Quitar los filtros
+                </button>
+              )}
+            </div>
+          )}
+
+          {seleccion != null && (
+            <Panel
+              idx={idx}
+              lugarId={seleccion}
+              afirmaciones={visible.afirmaciones}
+              contradicciones={disputas}
+              autoridad={autoridad}
+              onCerrar={cerrarPanel}
+            />
+          )}
+        </div>
+
+        <Tiempo
+          idx={idx}
+          gen={gen}
+          autoridad={autoridad}
+          acumulado={acumulado}
+          nLugares={visible.lugares.length}
+          nAfirmaciones={visible.afirmaciones.length}
+          nDisputas={disputas.length}
+          nDivinas={visible.nDivinas}
+          onGen={setGen}
+        />
+      </main>
     </div>
   )
 }

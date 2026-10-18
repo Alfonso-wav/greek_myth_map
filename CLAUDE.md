@@ -49,7 +49,7 @@ greek/
     graph.py              # proyeccion a Memgraph (solo lectura, desechable)
     export.py             # JSON estatico para la web del mapa
     cli.py                # `uv run greek <comando>`
-  web/                    # mapa OSM sepia + slider generacional (React/TS/Vite/Leaflet)
+  web/                    # Periégesis: mapa + eje generacional (React/TS/Vite/Leaflet)
     src/                  # datos.ts (indices), Mapa.tsx, Tiempo.tsx (slider+histo), Panel.tsx
     public/data/greek.json  # salida de `greek export-web`, SI en git (lo sirve GitHub Pages)
 ```
@@ -79,7 +79,7 @@ uv run greek graph --wipe                          # proyecta la base entera (~1
 uv run greek graph --only entidades relaciones     # recarga pasos sueltos
 
 uv run greek export-web                            # JSON estatico -> web/public/data/
-cd web && npm install && npm run dev               # mapa sepia + slider generacional
+cd web && npm install && npm run dev               # Periégesis en local
 ```
 
 Declara el entrypoint `greek` en `pyproject.toml` (`[project.scripts] greek = "greek.cli:main"`).
@@ -340,15 +340,23 @@ coordenada, no los 36.851 de Pleiades.
 
 - El lugar de una afirmación puede venir del objeto directo **o de un rol** (`en`, `hacia`,
   `desde`): son 2.209 por objeto y 7.728 por rol. Mirar solo el objeto perdía el 78 %.
-- React + TS + Vite + Leaflet con raster de OSM. El sepia es un `filter` sobre
+- **`DESIGN.md` (raíz) es la autoridad visual** de la web, que se llama **Periégesis**. Los
+  colores, tipos y radios salen de `web/src/tokens.css`, generado con
+  `node <design-md>/scripts/design.mjs tokens DESIGN.md --out web/src/tokens.css`; ningún color
+  literal en componentes (`design.mjs drift DESIGN.md web/src` lo comprueba).
+- React + TS + Vite + Leaflet con raster de OSM. El gris del mapa es un `filter` sobre
   `.leaflet-tile-pane`, no sobre el contenedor: si va al contenedor se come también los
-  marcadores. En oscuro el orden es `invert()` → `sepia()`; al revés el complementario del
-  marrón es azul y el mapa sale gris-azulado.
+  marcadores. En oscuro, `invert()` y luego `grayscale()`.
+- Los marcadores van en canvas y leen sus colores de las variables CSS **al pintarse**: `Mapa`
+  repinta cuando cambia `data-theme` o el esquema del sistema (`useEsquema`). Sin eso, al cambiar
+  de tema conservaban la rampa del anterior.
 - Atribución OSM (ODbL) y MANTO (CC BY-NC) en el mapa, obligatorias.
-- Paleta: solo dos colores significan algo, sepia (magnitud) y verdigris (contradicción).
-  Validados con el validador de la guía de dataviz contra las superficies reales, en claro y
-  oscuro. La rampa de marcas es **ordinal de 4 pasos, no secuencial de 5**: el quinto era el
-  más claro y con 1,30:1 contra el pergamino esos marcadores desaparecían (el suelo es 2:1).
+- Paleta: solo dos colores significan algo, la rampa de **tinta ferrogálica** azul (magnitud) y
+  la **rúbrica** roja (contradicción). Validados con el validador de la guía de dataviz contra las
+  superficies reales, en claro y oscuro, y la rúbrica contra **cada** paso de la rampa: peor par
+  CVD ΔE 16,6 / 14,7 (la paleta sepia/verdigris anterior daba 9,2 y caía en la «crema con
+  terracota» que prohíbe el manifiesto de diseño). La rampa de marcas es **ordinal de 4 pasos, no
+  secuencial de 5**: el quinto era el más claro y no despegaba del fondo (el suelo es 2:1).
 - El histograma se dibuja a píxeles reales con `ResizeObserver`; con
   `preserveAspectRatio="none"` el viewBox se estiraba 1,65× en X y deformaba el redondeo de 4 px
   y los huecos de 2 px.
