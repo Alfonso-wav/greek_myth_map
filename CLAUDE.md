@@ -51,7 +51,7 @@ greek/
     cli.py                # `uv run greek <comando>`
   web/                    # mapa OSM sepia + slider generacional (React/TS/Vite/Leaflet)
     src/                  # datos.ts (indices), Mapa.tsx, Tiempo.tsx (slider+histo), Panel.tsx
-    public/data/greek.json  # salida de `greek export-web`, NO en git
+    public/data/greek.json  # salida de `greek export-web`, SI en git (lo sirve GitHub Pages)
 ```
 
 ## Comandos

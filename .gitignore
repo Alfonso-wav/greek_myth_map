@@ -16,7 +16,9 @@ __pycache__/
 # web: dependencias, build y el JSON generado desde la base
 web/node_modules/
 web/dist/
-web/public/data/
+web/public/data/*
+!web/public/data/greek.json
+web/*.tsbuildinfo
 web/.vite/
 
 # ajustes locales de herramientas / SO
