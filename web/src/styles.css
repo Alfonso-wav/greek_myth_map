@@ -33,6 +33,9 @@
   --m2: var(--color-tinta-2);
   --m3: var(--color-tinta-3);
   --m4: var(--color-tinta-4);
+  --lazo-familia: var(--color-lazo-familia);
+  --lazo-violencia: var(--color-lazo-violencia);
+  --lazo-sagrado: var(--color-lazo-sagrado);
 
   /* el raster de OSM pasa a gris claro: es el papel, no compite en color */
   --filtro-mapa: grayscale(1) contrast(0.82) brightness(1.06);
@@ -66,6 +69,9 @@
     --m2: var(--color-dark-tinta-2);
     --m3: var(--color-dark-tinta-3);
     --m4: var(--color-dark-tinta-4);
+    --lazo-familia: var(--color-dark-lazo-familia);
+    --lazo-violencia: var(--color-dark-lazo-violencia);
+    --lazo-sagrado: var(--color-dark-lazo-sagrado);
     --filtro-mapa: invert(1) grayscale(1) brightness(0.72) contrast(0.88);
     --sombra: 0 1px 2px color-mix(in srgb, var(--color-dark-canvas) 70%, transparent),
       0 8px 24px color-mix(in srgb, var(--color-dark-canvas) 80%, transparent);
@@ -89,6 +95,9 @@
   --m2: var(--color-dark-tinta-2);
   --m3: var(--color-dark-tinta-3);
   --m4: var(--color-dark-tinta-4);
+  --lazo-familia: var(--color-dark-lazo-familia);
+  --lazo-violencia: var(--color-dark-lazo-violencia);
+  --lazo-sagrado: var(--color-dark-lazo-sagrado);
   --filtro-mapa: invert(1) grayscale(1) brightness(0.72) contrast(0.88);
   --sombra: 0 1px 2px color-mix(in srgb, var(--color-dark-canvas) 70%, transparent),
     0 8px 24px color-mix(in srgb, var(--color-dark-canvas) 80%, transparent);
@@ -1003,39 +1012,83 @@ button.nombre:hover {
   overflow: hidden;
   background: var(--fondo);
 }
-.red-lienzo svg {
+.red-lienzo > svg {
   position: absolute;
   inset: 0;
   display: block;
 }
 
-/* La línea es dato: tono y grosor dicen cuántas fuentes lo afirman (la misma
- * rampa de tinta del mapa), la rúbrica dice que discrepan. Nada más tiene color. */
-.arista {
-  stroke: var(--m1);
-  stroke-width: 1;
+/* La línea es dato: el tono dice la familia del vínculo (parentesco, violencia,
+ * lo sagrado, otros), la forma el subtipo (onda, zigzag, bucles… en formas.ts) y
+ * el grosor cuántas fuentes lo afirman. La disputa no tiñe la línea: va en un
+ * rombo de rúbrica aparte. */
+/* «otras» se queda atrás: es la mitad de las líneas y no debe tapar las clases */
+.arista,
+.muestra-lazo path {
+  fill: none;
+  stroke: color-mix(in srgb, var(--tinta-apagada) 55%, transparent);
+  stroke-linecap: round;
+  stroke-linejoin: round;
   transition: opacity var(--rapido);
 }
-.arista.f2 {
-  stroke: var(--m2);
+.arista {
   stroke-width: 1.5;
 }
+.arista.f2 {
+  stroke-width: 2;
+}
 .arista.f3 {
-  stroke: var(--m3);
-  stroke-width: 2.25;
+  stroke-width: 2.75;
 }
 .arista.f4 {
-  stroke: var(--m4);
-  stroke-width: 3;
+  stroke-width: 3.5;
 }
-.arista.dis {
-  stroke: var(--rubrica);
+.fam-familia path,
+.arista.fam-familia {
+  stroke: var(--lazo-familia);
+}
+.fam-violencia path,
+.arista.fam-violencia {
+  stroke: var(--lazo-violencia);
+}
+.fam-sagrado path,
+.arista.fam-sagrado {
+  stroke: var(--lazo-sagrado);
+}
+.forma-raya path,
+.arista.forma-raya {
+  stroke-dasharray: 7 4;
+}
+/* punto de longitud 0 con remate redondo: el diámetro es el grosor de la línea */
+.forma-punto path,
+.arista.forma-punto {
+  stroke-dasharray: 0 4.5;
+}
+.forma-rayapunto path,
+.arista.forma-rayapunto {
+  stroke-dasharray: 9 3.5 0 3.5;
+}
+/* los motivos con relieve, más finos: con 3,5 px una onda de 3 px se cierra */
+.arista.f3:is(.forma-onda, .forma-zigzag, .forma-cuadrada, .forma-bucles, .forma-doble,
+    .forma-chevrones, .forma-espina) {
+  stroke-width: 2;
+}
+.arista.f4:is(.forma-onda, .forma-zigzag, .forma-cuadrada, .forma-bucles, .forma-doble,
+    .forma-chevrones, .forma-espina) {
+  stroke-width: 2.5;
 }
 .arista.debil {
-  stroke-dasharray: 3 3;
+  opacity: 0.4;
 }
+.marca-dis {
+  fill: var(--rubrica);
+  stroke: var(--fondo);
+  stroke-width: 1.5;
+  transition: opacity var(--rapido);
+}
+.con-foco .marca-dis:not(.activa),
 .con-foco .arista:not(.activa),
-.con-foco .vecino:not(.activa) {
+.con-foco .vecino:not(.activa, .resalta) {
   opacity: 0.25;
 }
 
@@ -1176,15 +1229,141 @@ button.nombre:hover {
   color: var(--tinta-apagada);
 }
 
-.red-leyenda .escala i.f1 { background: var(--m1); }
-.red-leyenda .escala i.f2 { background: var(--m2); }
-.red-leyenda .escala i.f3 { background: var(--m3); }
-.red-leyenda .escala i.f4 { background: var(--m4); }
-.red-leyenda .marca-linea.solida {
-  border-top-style: solid;
+.red-leyenda {
+  margin-top: var(--space-sm);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--filete);
+  font-size: var(--text-label-size);
+  color: var(--tinta-2);
+}
+.red-leyenda h2 {
+  font-size: var(--text-label-size);
+  font-weight: var(--text-label-weight);
+  color: var(--tinta);
+}
+.red-leyenda .escala {
+  display: grid;
+  grid-template-columns: repeat(4, 38px);
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--tinta-apagada);
+  text-align: center;
+}
+.red-leyenda .fila {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.red-leyenda .marca-linea {
+  width: 22px;
+  height: 0;
+  flex: none;
+}
+.red-leyenda .nota {
+  margin-bottom: var(--space-sm);
+  color: var(--tinta-apagada);
+}
+.red-leyenda .familia + .familia,
+.red-leyenda .familia + h2 {
+  margin-top: var(--space-sm);
+}
+.red-leyenda h2 {
+  margin-bottom: 2px;
+}
+.red-leyenda .tipos {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.red-leyenda .tipos button {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0 4px;
+  font: inherit;
+  color: var(--tinta-2);
+  text-align: left;
+  background: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.red-leyenda .tipos button:hover,
+.red-leyenda .tipos button:focus-visible {
+  background: var(--superficie-2);
+  color: var(--tinta);
+}
+.red-leyenda .tipos button:focus-visible {
+  outline: 2px solid var(--tinta);
+  outline-offset: 1px;
+}
+.red-leyenda .tipos button[aria-pressed='true'] {
+  color: var(--tinta);
+  border-color: var(--tinta);
+  background: var(--superficie-2);
+}
+@media (pointer: coarse) {
+  .red-leyenda .tipos button {
+    min-height: var(--toque);
+  }
+}
+.red-leyenda .tipos button.sin {
+  opacity: 0.5;
+}
+.red-leyenda .tipos .et {
+  flex: 1;
+}
+.red-leyenda .tipos .cifra {
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--tinta-apagada);
+}
+.muestra-lazo {
+  flex: none;
+  vertical-align: middle;
+}
+.muestra-lazo path {
+  stroke-width: 1.75;
+}
+/* en la leyenda la escala es de grosor, no de tono */
+.red-leyenda .escala.grosor {
+  align-items: end;
+  column-gap: 6px;
+}
+.red-leyenda .escala.grosor i {
+  height: 0;
+  margin-bottom: 4px;
+  border-top: 1.5px solid var(--tinta-2);
+}
+.red-leyenda .escala.grosor i.f2 { border-top-width: 2px; }
+.red-leyenda .escala.grosor i.f3 { border-top-width: 2.75px; }
+.red-leyenda .escala.grosor i.f4 { border-top-width: 3.5px; }
+.red-leyenda .marca-dis-leyenda {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  margin: 0 7.5px;
+  background: var(--rubrica);
+  transform: rotate(45deg);
 }
 .red-leyenda .marca-linea.debil {
-  border-top: 2px dashed var(--tinta-2);
+  border-top: 2px solid var(--tinta-2);
+  opacity: 0.4;
+}
+.red-pista .tipo-et {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-label-size);
+  color: var(--tinta-apagada);
+}
+.red-pista p + p {
+  margin-top: 6px;
+}
+.afirm .que .tipo-afirm {
+  display: inline-block;
+  margin-right: 6px;
+  vertical-align: -1px;
 }
 
 .ficha {
@@ -1264,10 +1443,6 @@ button.nombre:hover {
     border-top: 1px solid var(--filete);
   }
   .red-pista {
-    display: none;
-  }
-  /* a este ancho la leyenda tapaba medio anillo; la ayuda del menú la explica */
-  .red-leyenda {
     display: none;
   }
 }

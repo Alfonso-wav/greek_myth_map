@@ -20,6 +20,9 @@ colors:
   tinta-2: "#5b7aa6"
   tinta-3: "#2f5288"
   tinta-4: "#13305e"
+  lazo-familia: "#2a78d6"
+  lazo-violencia: "#c98a00"
+  lazo-sagrado: "#159a6c"
 
   dark-canvas: "#15171c"
   dark-surface-1: "#1c1f25"
@@ -36,6 +39,9 @@ colors:
   dark-tinta-2: "#5f82b4"
   dark-tinta-3: "#8eacd6"
   dark-tinta-4: "#c3d4ec"
+  dark-lazo-familia: "#3987e5"
+  dark-lazo-violencia: "#c98500"
+  dark-lazo-sagrado: "#199e70"
 
 typography:
   brand:
@@ -134,6 +140,16 @@ Solo dos cosas tienen color propio, y las dos codifican dato:
 - **rubrica** `#b3301d` — disputa de ubicación: líneas en el mapa, aviso en el panel, conmutador
   «en disputa». Validada contra los cuatro pasos de la rampa porque conviven en el mismo lienzo:
   peor par CVD ΔE 16,6 (claro) y 14,7 (oscuro), objetivo ≥ 8.
+
+- **lazo-familia / lazo-violencia / lazo-sagrado** — solo en la vista de relaciones: la
+  familia del vínculo (parentesco; violencia; lo sagrado; los demás tratos en ink-muted). La
+  clase va en la forma de la línea (onda, zigzag, onda cuadrada, bucles, doble, chevrones,
+  espina, raya, punto), no en un cuarto tono: con siete tonos ninguna
+  paleta pasa todos los pares con daltonismo, porque las líneas salen juntas del centro. Los
+  tres validados `--pairs all` con la rúbrica en claro (peor CVD ΔE 8,1, normal 19,8) y entre
+  sí en oscuro (CVD 8,4). En oscuro la rúbrica cae cerca del ámbar (CVD 4,3): por eso la
+  disputa en esa vista es un rombo a media línea, forma propia, nunca el color de la línea.
+  El grosor dice cuántas fuentes lo afirman; «otras relaciones» va en ink-muted.
 
 ### Brand & Accent
 - **primary** es la tinta: el estado «activado» de un chip o conmutador se dibuja en negativo
@@ -244,7 +260,8 @@ hueco, extremo redondeado 4 px anclado a la base. Año en el rol brand. Slider d
 ## Do's and Don'ts
 
 ### Do
-- Un solo color con significado además de la rampa: la rúbrica, y solo para disputas.
+- Un solo color con significado además de la rampa: la rúbrica, y solo para disputas. La
+  excepción son los tres tonos de lazo, confinados a las líneas de la vista de relaciones.
 - Validar con `validate_palette.js` cualquier cambio de rampa o de rúbrica, en claro y en oscuro.
 - Texto junto a todo color: leyenda con rótulos, flags con palabras.
 - Recuentos calculados sobre lo exportado, no sobre la base.

@@ -293,14 +293,16 @@ export default function App() {
               sentido de las agujas del reloj.
             </p>
             <p>
-              Una línea resume todas las fuentes que afirman la relación: cuanto más oscura, más
-              fuentes. En rojo, cuando las fuentes discrepan sobre quién es el progenitor o quién
-              mató a quién. Pulsa una figura para centrarla.
+              Una línea resume todas las fuentes que afirman la relación: el color dice la familia
+              del vínculo, la forma su clase y el grosor cuántas fuentes. La leyenda de abajo lo
+              detalla. Pulsa una figura para centrarla.
             </p>
             <p className="ayuda">
               El mito no tiene versión canónica: si Hesíodo y Apolodoro dan padres distintos,
               salen los dos.
             </p>
+            {/* aquí monta Red su leyenda con un portal: sobre el lienzo tapaba medio anillo */}
+            <div id="hueco-leyenda-red" />
           </div>
         ) : (
           <>

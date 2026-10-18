@@ -392,6 +392,21 @@ navegador pide solo al abrir la vista. Grafo ego radial en SVG, sin dependencias
 - `dis` (rúbrica) solo para contradicciones de `genealogia`/`autoria_muerte`: las de
   `ubicacion` discuten dónde, no entre quiénes, y teñían casi todas las aristas de Heracles.
 - Citas internadas en una tabla (`citas` + índices): repetidas por arista eran 1,4 MB.
+- **La línea codifica la clase de vínculo** (`datosRed.TIPOS`/`tipoDe`, 13 clases): tono =
+  familia (parentesco azul, violencia ámbar, lo sagrado verde, otros tratos gris), **forma** =
+  clase (`formas.ts`: recta, raya, punto, raya-punto, onda, zigzag, onda cuadrada, bucles,
+  doble, chevrones, espina), grosor = fuentes. La pareja (familia, forma) es única. Más de tres
+  tonos no pasan el validador de dataviz con todos los pares en juego (las líneas salen juntas
+  del centro); la forma es la codificación que distingue. Los motivos empiezan a
+  `RECTO_CENTRO` px del centro: ahí convergen todas y una onda solo sería un borrón. La
+  disputa es un **rombo de rúbrica a media línea**, no el color: en oscuro rúbrica y ámbar dan
+  CVD ΔE 4,3. Los predicados de categoría `otra` se reparten a mano en `POR_CLAVE`.
+- **La leyenda vive en el lateral**, montada con un portal en `#hueco-leyenda-red` (App): sobre
+  el lienzo tapaba medio anillo. Pasar por una clase resalta sus líneas y pulsarla la fija (en
+  táctil es lo único que hay); cada afirmación de la ficha lleva su muestra de línea.
+- `.red-lienzo > svg` lleva `>` a propósito: sin él la regla de posición absoluta se come
+  también los SVG de muestra. Y la muestra es `.muestra-lazo`, no `.muestra`, que ya usan los
+  conmutadores del mapa.
 - Si no caben todas las figuras en el anillo, **progenitores, parejas y hermanos entran
   siempre** y el resto por fuentes: recortar por fuentes a secas dejaba fuera progenitores
   citados una vez. La descendencia no tiene prioridad: los 63 hijos de Heracles llenaban el

@@ -1,16 +1,23 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 import { mayuscula } from './datos'
 import {
   buscarFiguras,
   CORTES_FUENTES,
   GRUPOS,
+  FAMILIAS,
   pasoFuentes,
+  TIPO,
+  TIPOS,
+  tipoDe,
+  type Tipo,
   vecinosDe,
   type Grupo,
   type IndiceRed,
   type Vecino,
 } from './datosRed'
+import { trazado } from './formas'
 import type { AristaRed } from './types'
 
 interface Props {
@@ -62,6 +69,25 @@ function useTamano<T extends HTMLElement>() {
   return [ref, tam] as const
 }
 
+/** Tramo recto junto al centro antes de que empiece el motivo: ahí convergen todas
+ *  las líneas y una onda o un rizo solo serían un borrón. */
+const RECTO_CENTRO = 28
+
+/** Trocito de línea con el mismo tono y forma que la arista: leyenda, pista y ficha. */
+function Muestra({ tipo, ancho = 40 }: { tipo: Tipo; ancho?: number }) {
+  const t = TIPO[tipo]
+  return (
+    <svg
+      className={`muestra-lazo fam-${t.fam} forma-${t.forma}`}
+      width={ancho}
+      height="12"
+      aria-hidden="true"
+    >
+      <path d={trazado(t.forma, 2, 6, ancho - 2, 6)} />
+    </svg>
+  )
+}
+
 interface Colocado {
   v: Vecino
   x: number
@@ -104,6 +130,13 @@ function colocar(vecinos: Vecino[], cx: number, cy: number, R: number) {
 export default function Red({ ir, centro, onCentro, onVerMapa, enMapa }: Props) {
   const [caja, { w, h }] = useTamano<HTMLDivElement>()
   const [foco, setFoco] = useState<number | null>(null)
+  // resaltado por clase desde la leyenda: el hover manda, el clic lo fija (táctil)
+  const [tipoHover, setTipoHover] = useState<Tipo | null>(null)
+  const [tipoFijo, setTipoFijo] = useState<Tipo | null>(null)
+  // la leyenda vive en el lateral (App deja el hueco); sobre el lienzo tapaba el anillo
+  const [hueco, setHueco] = useState<HTMLElement | null>(null)
+  useEffect(() => setHueco(document.getElementById('hueco-leyenda-red')), [])
+  const tipoActivo = tipoHover ?? tipoFijo
   const [texto, setTexto] = useState('')
   const lista = useRef<HTMLDivElement>(null)
 
@@ -128,15 +161,25 @@ export default function Red({ ir, centro, onCentro, onVerMapa, enMapa }: Props) 
     const resto = vecinos.filter((v) => !FAMILIA.has(v.grupo))
     return [...familia, ...resto].slice(0, cupo)
   }, [vecinos, cupo])
-  const { nodos, rotulos } = useMemo(
-    () => colocar(dibujados, cx, cy, R),
-    [dibujados, cx, cy, R],
-  )
+  const { nodos, rotulos } = useMemo(() => colocar(dibujados, cx, cy, R), [dibujados, cx, cy, R])
   const totalGrupo = useMemo(() => {
     const t = new Map<Grupo, number>()
     for (const v of vecinos) t.set(v.grupo, (t.get(v.grupo) ?? 0) + 1)
     return t
   }, [vecinos])
+
+  const porTipo = useMemo(() => {
+    const t = new Map<Tipo, number>()
+    for (const { v } of nodos) t.set(v.tipo, (t.get(v.tipo) ?? 0) + 1)
+    return t
+  }, [nodos])
+  const trazados = useMemo(
+    () =>
+      nodos.map(({ v, x, y }) =>
+        trazado(TIPO[v.tipo].forma, cx, cy, x, y, RECTO_CENTRO, radioNodo(v.nodo.gr) + 2),
+      ),
+    [nodos, cx, cy],
+  )
 
   const resultados = useMemo(() => buscarFiguras(ir, texto), [ir, texto])
 
@@ -223,23 +266,42 @@ export default function Red({ ir, centro, onCentro, onVerMapa, enMapa }: Props) 
           <svg
             width={w}
             height={h}
-            className={foco != null ? 'con-foco' : undefined}
+            className={foco != null || tipoActivo ? 'con-foco' : undefined}
             role="img"
             aria-label={`${nodo.n} y ${dibujados.length} figuras relacionadas`}
           >
             <g className="aristas">
-              {nodos.map(({ v, x, y }) => (
-                <line
+              {nodos.map(({ v }, i) => (
+                <path
                   key={v.nodo.id}
-                  x1={cx}
-                  y1={cy}
-                  x2={x}
-                  y2={y}
-                  className={`arista f${pasoFuentes(v.n)}${v.dis ? ' dis' : ''}${
-                    v.debil ? ' debil' : ''
-                  }${foco === v.nodo.id ? ' activa' : ''}`}
+                  d={trazados[i]}
+                  className={`arista f${pasoFuentes(v.n)} fam-${TIPO[v.tipo].fam} forma-${
+                    TIPO[v.tipo].forma
+                  }${v.debil ? ' debil' : ''}${
+                    foco === v.nodo.id || v.tipo === tipoActivo ? ' activa' : ''
+                  }`}
                 />
               ))}
+            </g>
+
+            {/* La disputa va como marca aparte, a media línea: el color de la línea
+                ya dice la clase de vínculo y la rúbrica no puede competir con él. */}
+            <g className="disputas" aria-hidden="true">
+              {nodos
+                .filter(({ v }) => v.dis)
+                .map(({ v, x, y }) => (
+                  <rect
+                    key={v.nodo.id}
+                    x={-3.5}
+                    y={-3.5}
+                    width={7}
+                    height={7}
+                    transform={`translate(${(cx + x) / 2},${(cy + y) / 2}) rotate(45)`}
+                    className={`marca-dis${
+                      foco === v.nodo.id || v.tipo === tipoActivo ? ' activa' : ''
+                    }`}
+                  />
+                ))}
             </g>
 
             {R >= R_ROTULOS &&
@@ -259,11 +321,13 @@ export default function Red({ ir, centro, onCentro, onVerMapa, enMapa }: Props) 
               return (
                 <g
                   key={v.nodo.id}
-                  className={`vecino${foco === v.nodo.id ? ' activa' : ''}`}
+                  className={`vecino${foco === v.nodo.id ? ' activa' : ''}${
+                    v.tipo === tipoActivo ? ' resalta' : ''
+                  }`}
                   transform={`translate(${x},${y})`}
                   tabIndex={0}
                   role="button"
-                  aria-label={`${v.nodo.n}: ${ETIQUETA_GRUPO[v.grupo]}, ${v.n} ${
+                  aria-label={`${v.nodo.n}: ${TIPO[v.tipo].et}, ${v.n} ${
                     v.n === 1 ? 'fuente' : 'fuentes'
                   }. Centrar.`}
                   onMouseEnter={() => setFoco(v.nodo.id)}
@@ -308,8 +372,13 @@ export default function Red({ ir, centro, onCentro, onVerMapa, enMapa }: Props) 
               const pred = ir.red.predicados[a.p]
               const s = ir.nodos.get(a.s)?.n
               const o = ir.nodos.get(a.o)?.n
+              const t = tipoDe(ir.red, a)
               return (
                 <p key={i}>
+                  <span className="tipo-et">
+                    <Muestra tipo={t} ancho={32} />
+                    {TIPO[t].et}
+                  </span>
                   {s} <i>{pred.e}</i> {o}
                   {a.dis ? <span className="dis"> · en disputa</span> : null}
                 </p>
@@ -319,25 +388,61 @@ export default function Red({ ir, centro, onCentro, onVerMapa, enMapa }: Props) 
           </div>
         )}
 
-        <div className="leyenda red-leyenda">
-          <h2>Fuentes que lo afirman</h2>
-          <div className="escala">
-            {CORTES_FUENTES.map((c, i) => (
-              <span key={c}>
-                <i className={`f${i + 1}`} aria-hidden="true" />
-                {c}
-              </span>
-            ))}
-          </div>
-          <div className="fila">
-            <i className="marca-linea solida" aria-hidden="true" />
-            <span>Las fuentes discrepan</span>
-          </div>
-          <div className="fila">
-            <i className="marca-linea debil" aria-hidden="true" />
-            <span>Dudoso o implícito</span>
-          </div>
-        </div>
+        {hueco &&
+          createPortal(
+            <section className="red-leyenda" aria-label="Leyenda de las líneas">
+              <h2 className="rotulo">Leyenda</h2>
+              <p className="nota">
+                Pasa por una clase para resaltar sus líneas; pulsa para fijarla.
+              </p>
+              {FAMILIAS.map((f) => (
+                <div key={f.k} className="familia">
+                  <h2>{f.et}</h2>
+                  <ul className="tipos">
+                    {TIPOS.filter((t) => t.fam === f.k).map((t) => {
+                      const n = porTipo.get(t.k) ?? 0
+                      return (
+                        <li key={t.k}>
+                          <button
+                            type="button"
+                            className={n ? undefined : 'sin'}
+                            aria-pressed={tipoFijo === t.k}
+                            onMouseEnter={() => setTipoHover(t.k)}
+                            onMouseLeave={() => setTipoHover(null)}
+                            onFocus={() => setTipoHover(t.k)}
+                            onBlur={() => setTipoHover(null)}
+                            onClick={() => setTipoFijo(tipoFijo === t.k ? null : t.k)}
+                          >
+                            <Muestra tipo={t.k} />
+                            <span className="et">{t.et}</span>
+                            <span className="cifra">{n}</span>
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+              ))}
+              <h2>Fuentes que lo afirman</h2>
+              <div className="escala grosor">
+                {CORTES_FUENTES.map((c, i) => (
+                  <span key={c}>
+                    <i className={`f${i + 1}`} aria-hidden="true" />
+                    {c}
+                  </span>
+                ))}
+              </div>
+              <div className="fila">
+                <i className="marca-dis-leyenda" aria-hidden="true" />
+                <span>Las fuentes discrepan</span>
+              </div>
+              <div className="fila">
+                <i className="marca-linea debil" aria-hidden="true" />
+                <span>Dudoso o implícito</span>
+              </div>
+            </section>,
+            hueco,
+          )}
       </div>
 
       <aside className="ficha" aria-label={`Relaciones de ${nodo.n}`} ref={lista}>
@@ -382,7 +487,12 @@ export default function Red({ ir, centro, onCentro, onVerMapa, enMapa }: Props) 
             {g.vs.flatMap((v) =>
               v.aristas.map((a, i) => (
                 <article className="afirm" key={`${v.nodo.id}-${a.p}-${a.rol ?? ''}-${a.s}-${i}`}>
-                  <div className="que">{frase(a)}</div>
+                  <div className="que">
+                    <span className="tipo-afirm" title={TIPO[tipoDe(ir.red, a)].et}>
+                      <Muestra tipo={tipoDe(ir.red, a)} ancho={28} />
+                    </span>
+                    {frase(a)}
+                  </div>
                   {a.dis || a.inc || a.duda || a.impl || a.alt ? (
                     <div className="marcas">
                       {a.dis === 1 && <em className="dis">otra fuente lo cuenta distinto</em>}
@@ -415,7 +525,8 @@ export default function Red({ ir, centro, onCentro, onVerMapa, enMapa }: Props) 
                       })}
                       {a.n > a.ci.length && (
                         <li className="mas">
-                          y {a.n - a.ci.length} {a.n - a.ci.length === 1 ? 'fuente más' : 'fuentes más'}
+                          y {a.n - a.ci.length}{' '}
+                          {a.n - a.ci.length === 1 ? 'fuente más' : 'fuentes más'}
                         </li>
                       )}
                     </ul>
