@@ -562,6 +562,10 @@ vacías esa columna para esas filas.
 
 ## Gotchas técnicos
 
+- **Los ZIP no se descomprimen.** MANTO y Pleiades se leen como miembros del ZIP
+  (`archivo.Zip`). MANTO descomprimido son 5,4 GB y el loader usa 56 MB:
+  `related_entities` (3,1 GB) y `mentioned_in_text` (830 MB) no se leen. Un loader nuevo
+  sobre un ZIP usa `Zip.primero()`/`Zip.filas()`, nunca `extractall`.
 - CSV de Pleiades: **BOM UTF-8** → `encoding='utf-8-sig'`. Campos WKT llevan comas dentro de
   comillas: usa el módulo `csv`, no `split(',')`.
 - URLs de descarga de ToposText en su HTML usan `\` → cambiar por `/`.

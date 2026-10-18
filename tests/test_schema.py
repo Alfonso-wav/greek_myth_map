@@ -108,3 +108,31 @@ def test_derivacion_generacional_formula():
     assert generacional.fecha_generacional(2) == -1184
     assert generacional.fecha_generacional(0) == -1250
     assert generacional.fecha_generacional(4) == -1118
+
+
+def test_relacion_fuente_no_se_duplica_al_recargar(con):
+    fuente = _fuente(con)
+    eid = con.execute(
+        "INSERT INTO entidad (nombre, fuente_dataset_id) VALUES ('Teseo', ?)", (fuente,)
+    ).lastrowid
+    pid = con.execute(
+        "INSERT INTO predicado (clave, nombre_es, categoria) VALUES ('kills', 'mata', 'muerte')"
+    ).lastrowid
+    rid = con.execute(
+        "INSERT INTO relacion (sujeto_id, predicado_id, fuente_dataset_id) VALUES (?,?,?)",
+        (eid, pid, fuente),
+    ).lastrowid
+    obra = con.execute(
+        "INSERT INTO obra (titulo, fuente_dataset_id) VALUES ('Biblioteca', ?)", (fuente,)
+    ).lastrowid
+    pasaje = con.execute(
+        "INSERT INTO pasaje (obra_id, cita, fuente_dataset_id) VALUES (?, '3.15.8', ?)",
+        (obra, fuente),
+    ).lastrowid
+    # dos cargas del mismo loader: pasaje_id informado y artefacto/inscripcion a NULL
+    for _ in range(2):
+        con.execute(
+            "INSERT OR IGNORE INTO relacion_fuente (relacion_id, pasaje_id) VALUES (?,?)",
+            (rid, pasaje),
+        )
+    assert con.execute("SELECT count(*) FROM relacion_fuente").fetchone()[0] == 1

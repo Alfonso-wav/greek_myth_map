@@ -302,6 +302,11 @@ CREATE TABLE IF NOT EXISTS relacion_fuente (
     CHECK (pasaje_id IS NOT NULL OR artefacto_id IS NOT NULL OR inscripcion_id IS NOT NULL)
 );
 CREATE INDEX IF NOT EXISTS ix_relfte_rel ON relacion_fuente(relacion_id);
+-- Sin esta clave el INSERT OR IGNORE del loader no ignora nada y cada recarga de MANTO
+-- duplicaba las 31.201 atestaciones. COALESCE porque en SQLite dos NULL no colisionan.
+CREATE UNIQUE INDEX IF NOT EXISTS ux_relfte ON relacion_fuente(
+    relacion_id, COALESCE(pasaje_id, 0), COALESCE(artefacto_id, 0), COALESCE(inscripcion_id, 0)
+);
 
 -- Contradicciones explicitas entre versiones del mito.
 -- Si esta tabla sale vacia, el modelo esta aplanado: es un fallo.

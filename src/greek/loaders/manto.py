@@ -47,8 +47,8 @@ import csv
 import re
 import sqlite3
 from collections.abc import Iterator
-from pathlib import Path
 
+from ..archivo import Zip, stem
 from ..db import (
     RAW_DIR,
     entidad_por_identificador,
@@ -59,7 +59,8 @@ from ..db import (
 )
 from ..normalize import normalizar
 
-DIR = RAW_DIR / "manto"
+# Se lee del ZIP sin descomprimir: descomprimido son 5,4 GB y el loader usa 56 MB.
+ZIP = Zip(RAW_DIR / "manto" / "manto_publication_2616.zip")
 
 # El emoji que prefija Name es el unico portador del tipo de entidad.
 EMOJI_TIPO = {
@@ -155,20 +156,17 @@ _ESPACIOS = re.compile(r"\s+")
 # ------------------------------------------------------------------ lectura
 
 
-def _ruta(nombre: str) -> Path | None:
-    return next(DIR.rglob(nombre), None) if DIR.is_dir() else None
+def _ruta(nombre: str) -> str | None:
+    return ZIP.primero(nombre)
 
 
-def _ruta_definicion(campo: str) -> Path | None:
+def _ruta_definicion(campo: str) -> str | None:
     """Los CSV de definicion llevan el id numerico en el nombre: `using_..._18085.csv`."""
-    return next(DIR.rglob(f"{campo}_object_definitions_*.csv"), None)
+    return ZIP.primero(f"{campo}_object_definitions_*.csv")
 
 
-def _leer(ruta: Path | None) -> Iterator[dict[str, str]]:
-    if ruta is None or not ruta.is_file():
-        return
-    with ruta.open(encoding="utf-8-sig", newline="") as fh:
-        yield from csv.DictReader(fh)
+def _leer(ruta: str | None) -> Iterator[dict[str, str]]:
+    yield from ZIP.filas(ruta)
 
 
 def _tabla(nombre: str) -> Iterator[dict[str, str]]:
@@ -197,9 +195,9 @@ def _partir_ref(ref: str) -> tuple[str | None, str]:
     return None, ref
 
 
-def _columna_ref(ruta: Path) -> str:
+def _columna_ref(ruta: str) -> str:
     """Nombre legible de la columna de referencia de un CSV de definicion."""
-    with ruta.open(encoding="utf-8-sig", newline="") as fh:
+    with ZIP.abrir(ruta) as fh:
         for col in next(csv.reader(fh), []):
             if col.endswith(" - Object ID"):
                 return col[: -len(" - Object ID")]
@@ -249,8 +247,8 @@ def _id_externo(valor: str | None) -> str:
 
 def inspeccionar() -> str:
     """Cabeceras reales del dump, para verificar el mapeo antes de cargar."""
-    if not DIR.is_dir():
-        return f"manto: no existe {DIR}. Ejecuta `greek fetch --source manto`."
+    if not ZIP.existe():
+        return f"manto: no existe {ZIP.ruta}. Ejecuta `greek fetch --source manto`."
     lineas: list[str] = []
     for nombre in (
         "entity_objects_6580.csv",
@@ -272,7 +270,10 @@ def inspeccionar() -> str:
     lineas.append("")
     lineas.append("CSV de definicion encontrados (campo -> id):")
     encontrados = sorted(
-        (p.stem.rsplit("_object_definitions_", 1) for p in DIR.rglob("*_object_definitions_*.csv")),
+        (
+            stem(p).rsplit("_object_definitions_", 1)
+            for p in ZIP.buscar("*_object_definitions_*.csv")
+        ),
         key=lambda x: x[0],
     )
     lineas.append("  " + ", ".join(f"{c}={i}" for c, i in encontrados[:40]))
@@ -291,7 +292,7 @@ def inspeccionar() -> str:
 def cargar(con: sqlite3.Connection) -> str:
     if _ruta("entity_objects_6580.csv") is None:
         return (
-            f"manto: no encontrado entity_objects_6580.csv en {DIR}. "
+            f"manto: no encontrado entity_objects_6580.csv en {ZIP.ruta}. "
             "Ejecuta `greek fetch --source manto`."
         )
 
@@ -350,10 +351,10 @@ def cargar(con: sqlite3.Connection) -> str:
 def _fecha() -> str:
     from datetime import UTC, datetime
 
-    ruta = _ruta("entity_objects_6580.csv")
-    if ruta is None:
+    if _ruta("entity_objects_6580.csv") is None:
         return datetime.now(UTC).date().isoformat()
-    return datetime.fromtimestamp(ruta.stat().st_mtime, UTC).date().isoformat()
+    # la fecha del ZIP es la de descarga; la de un CSV extraido era la de extraccion
+    return datetime.fromtimestamp(ZIP.ruta.stat().st_mtime, UTC).date().isoformat()
 
 
 def _cargar_entidades(con: sqlite3.Connection, fuente_id: int) -> tuple[int, dict[str, int]]:
@@ -431,7 +432,7 @@ def _cargar_identificadores(con: sqlite3.Connection, mapa_ent: dict[str, int]) -
     """wikidata / trismegistos / digital_limc / limc_headword desde sus CSV."""
     n = 0
     for campo, namespace in IDS_ENTIDAD.items():
-        for ruta in DIR.rglob(f"{campo}_object_definitions_*.csv"):
+        for ruta in ZIP.buscar(f"{campo}_object_definitions_*.csv"):
             columna = _columna_ref(ruta) or campo
             for fila in _leer(ruta):
                 eid = mapa_ent.get((fila.get("Object ID") or "").strip())
@@ -454,7 +455,7 @@ def _cargar_identificadores(con: sqlite3.Connection, mapa_ent: dict[str, int]) -
                 )
                 n += 1
     # nombres alternativos: mismo patron, a entidad_nombre
-    for ruta in DIR.rglob("alternative_name*_object_definitions_*.csv"):
+    for ruta in ZIP.buscar("alternative_name*_object_definitions_*.csv"):
         columna = _columna_ref(ruta)
         for fila in _leer(ruta):
             eid = mapa_ent.get((fila.get("Object ID") or "").strip())
@@ -851,7 +852,8 @@ def _cargar_periodos(con: sqlite3.Connection) -> tuple[int, dict[str, int]]:
         return 0, {}
     import json
 
-    datos = json.loads(ruta.read_text(encoding="utf-8"))
+    with ZIP.abrir(ruta, encoding="utf-8") as fh:
+        datos = json.load(fh)
     mapa: dict[str, int] = {}
     for manto_id, obj in datos.items():
         nombre = ((obj or {}).get("object") or {}).get("object_name") or ""

@@ -7,7 +7,6 @@ tiempo de carga en vez de bajarse.
 
 from __future__ import annotations
 
-import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -21,7 +20,6 @@ class Descarga:
     fuente: str
     url: str
     destino: str
-    descomprimir: bool = False
     opcional: bool = False
     nota: str = ""
 
@@ -35,7 +33,6 @@ DESCARGAS: tuple[Descarga, ...] = (
         "https://zenodo.org/api/records/19446255/files/"
         "publication-2616-20260306061219.zip/content",
         "manto/manto_publication_2616.zip",
-        descomprimir=True,
         nota=(
             "Si Zenodo cambia el nombre del fichero, saca el nuevo de "
             "https://zenodo.org/api/records/19446255 (campo files[].key)."
@@ -45,7 +42,6 @@ DESCARGAS: tuple[Descarga, ...] = (
         "pleiades",
         "https://atlantides.org/downloads/pleiades/gis/pleiades_gis_data.zip",
         "pleiades/pleiades_gis_data.zip",
-        descomprimir=True,
     ),
     Descarga(
         "topostext",
@@ -141,12 +137,9 @@ def descargar(fuente: str | None = None, forzar: bool = False) -> list[Path]:
                     print(f"[{d.fuente}] FALLO: {exc.__class__.__name__} — se continua")
                     continue
                 print(f"[{d.fuente}] -> {destino} ({destino.stat().st_size:,} bytes)")
+            # los ZIP no se descomprimen: los loaders leen sus CSV como miembros
+            # (archivo.Zip). MANTO descomprimido son 5,4 GB y se usan 56 MB.
             bajados.append(destino)
-
-            if d.descomprimir and destino.suffix == ".zip":
-                with zipfile.ZipFile(destino) as zf:
-                    zf.extractall(destino.parent)
-                print(f"[{d.fuente}] descomprimido en {destino.parent}")
 
     if fallos:
         print("\n--- descargas fallidas ---")

@@ -9,11 +9,10 @@ Trampa critica: location_precision='rough' puede ser el centroide de una caja de
 
 from __future__ import annotations
 
-import csv
 import re
 import sqlite3
-from pathlib import Path
 
+from ..archivo import Zip
 from ..db import (
     RAW_DIR,
     entidad_por_identificador,
@@ -24,7 +23,8 @@ from ..db import (
 )
 from ..normalize import normalizar
 
-GIS = RAW_DIR / "pleiades"
+# Se lee del ZIP sin descomprimir (34 MB frente a 160 MB extraidos).
+ZIP = Zip(RAW_DIR / "pleiades" / "pleiades_gis_data.zip")
 
 # place_type de Pleiades -> tipo_entidad del esquema.
 # Claves verificadas contra place_types.csv del paquete GIS real.
@@ -61,19 +61,8 @@ RE_PUNTO = re.compile(r"POINT\s*\(\s*(-?[\d.]+)\s+(-?[\d.]+)\s*\)", re.IGNORECAS
 
 
 def _abrir(nombre: str) -> list[dict]:
-    ruta = _localizar(nombre)
-    if ruta is None:
-        return []
-    with ruta.open(encoding="utf-8-sig", newline="") as fh:
-        return list(csv.DictReader(fh))
-
-
-def _localizar(nombre: str) -> Path | None:
-    """El ZIP puede extraer con o sin subcarpeta."""
-    for cand in (GIS / nombre, *GIS.glob(f"**/{nombre}")):
-        if cand.is_file():
-            return cand
-    return None
+    """El CSV puede ir en la raiz del ZIP o en una subcarpeta (`data/gis/`)."""
+    return list(ZIP.filas(ZIP.primero(nombre)))
 
 
 def _entero(valor: str | None) -> int | None:
@@ -233,10 +222,10 @@ def cargar(con: sqlite3.Connection) -> str:
 def _fecha_fichero(nombre: str) -> str:
     from datetime import UTC, datetime
 
-    ruta = _localizar(nombre)
-    if ruta is None:
+    # la fecha del ZIP es la de descarga; la de un CSV extraido era la de extraccion
+    if ZIP.primero(nombre) is None:
         return datetime.now(UTC).date().isoformat()
-    return datetime.fromtimestamp(ruta.stat().st_mtime, UTC).date().isoformat()
+    return datetime.fromtimestamp(ZIP.ruta.stat().st_mtime, UTC).date().isoformat()
 
 
 def _tipos_por_lugar() -> dict[str, str]:
