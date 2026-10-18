@@ -1,6 +1,9 @@
 """Tests del export a la web: enlaces a los textos y clave de busqueda."""
 
-from greek.export import clave_busqueda, enlace_pasaje
+import pytest
+
+from greek.db import connect, init_schema, registrar_fuente
+from greek.export import _red, clave_busqueda, enlace_pasaje
 
 SCAIFE = "https://scaife.perseus.org/reader/"
 
@@ -90,3 +93,105 @@ def test_clave_quita_la_puntuacion_de_los_cualificadores():
     limpiar quedaba el token `(olympian)`, que no casa al teclear `olympian`."""
     k = clave_busqueda("Zeus (Olympian)")
     assert "olympian" in k.split()
+
+
+# ------------------------------------------------------------ vista de relaciones
+
+
+@pytest.fixture
+def con(tmp_path):
+    c = connect(tmp_path / "test.db")
+    init_schema(c)
+    yield c
+    c.close()
+
+
+def _red_minima(con):
+    """Heracles hijo de Zeus (dos fuentes), Heracles mata a Hilo (dos fuentes) y
+    Heracles visita Tebas (lugar)."""
+    f = registrar_fuente(
+        con,
+        clave="t",
+        nombre="t",
+        licencia="n/a",
+        fecha_descarga="2026-10-18",
+        atribucion_texto="t",
+    )
+    tipo = dict(con.execute("SELECT clave, id FROM tipo_entidad"))
+    ids = {}
+    for nombre, t in [
+        ("Heracles", "agente"),
+        ("Zeus", "agente"),
+        ("Hilo", "agente"),
+        ("Tebas", "lugar"),
+    ]:
+        ids[nombre] = con.execute(
+            "INSERT INTO entidad (nombre, tipo_entidad_id, fuente_dataset_id) VALUES (?,?,?)",
+            (nombre, tipo[t], f),
+        ).lastrowid
+    pred = {}
+    for clave, cat in [
+        ("is_child_of", "genealogica"),
+        ("kills", "muerte"),
+        ("visits", "geografica"),
+    ]:
+        pred[clave] = con.execute(
+            "INSERT INTO predicado (clave, nombre_es, categoria) VALUES (?,?,?)",
+            (clave, clave, cat),
+        ).lastrowid
+
+    def rel(s, p, o, duda=0):
+        return con.execute(
+            "INSERT INTO relacion (sujeto_id, predicado_id, objeto_id, duda_expresada, "
+            "fuente_dataset_id) VALUES (?,?,?,?,?)",
+            (ids[s], pred[p], ids[o], duda, f),
+        ).lastrowid
+
+    padre_a = rel("Heracles", "is_child_of", "Zeus", duda=1)
+    padre_b = rel("Heracles", "is_child_of", "Zeus")
+    mata_a = rel("Heracles", "kills", "Hilo", duda=1)
+    mata_b = rel("Heracles", "kills", "Hilo", duda=1)
+    rel("Heracles", "visits", "Tebas")
+    return ids, (padre_a, padre_b, mata_a, mata_b)
+
+
+def test_red_agrega_una_arista_por_terna(con):
+    """Una fila de `relacion` por fuente; la vista dibuja UNA arista con `n`."""
+    ids, _ = _red_minima(con)
+    red = _red(con, {})
+    padre = [a for a in red["aristas"] if a["o"] == ids["Zeus"]]
+    assert len(padre) == 1
+    assert padre[0]["n"] == 2
+
+
+def test_red_excluye_lugares(con):
+    """Los lugares ya tienen el mapa: aqui convertian a cada dios en una estrella
+    de santuarios."""
+    ids, _ = _red_minima(con)
+    red = _red(con, {})
+    assert ids["Tebas"] not in {n["id"] for n in red["nodos"]}
+
+
+def test_red_flags_con_and(con):
+    """Si una fuente duda y otra lo afirma, el hecho esta afirmado."""
+    ids, _ = _red_minima(con)
+    red = _red(con, {})
+    por_objeto = {a["o"]: a for a in red["aristas"]}
+    assert "duda" not in por_objeto[ids["Zeus"]]
+    assert por_objeto[ids["Hilo"]]["duda"] == 1
+
+
+def test_red_disputa_solo_genealogia_y_muerte(con):
+    """Una contradiccion de ubicacion discute donde, no entre quienes."""
+    ids, (padre_a, padre_b, mata_a, mata_b) = _red_minima(con)
+    con.execute(
+        "INSERT INTO contradiccion (relacion_a_id, relacion_b_id, tipo) VALUES (?,?,?)",
+        (padre_a, padre_b, "genealogia"),
+    )
+    con.execute(
+        "INSERT INTO contradiccion (relacion_a_id, relacion_b_id, tipo) VALUES (?,?,?)",
+        (mata_a, mata_b, "ubicacion"),
+    )
+    por_objeto = {a["o"]: a for a in _red(con, {})["aristas"]}
+    assert por_objeto[ids["Zeus"]].get("dis") == 1
+    assert "dis" not in por_objeto[ids["Hilo"]]

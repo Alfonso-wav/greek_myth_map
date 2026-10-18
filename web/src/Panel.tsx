@@ -10,6 +10,8 @@ interface Props {
   contradicciones: Contradiccion[]
   autoridad: Autoridad
   onCerrar: () => void
+  /** abre la vista de relaciones centrada en esta figura */
+  onRelaciones: (id: number) => void
 }
 
 export default function Panel({
@@ -19,6 +21,7 @@ export default function Panel({
   contradicciones,
   autoridad,
   onCerrar,
+  onRelaciones,
 }: Props) {
   // Escape cierra el panel, salvo que el cajón móvil esté abierto encima: ahí
   // Escape es del cajón
@@ -170,6 +173,15 @@ export default function Panel({
                     <span className="grc" lang="grc" translate="no">
                       {ag.grc}
                     </span>
+                  )}
+                  {ag && (
+                    <button
+                      className="enlace"
+                      onClick={() => onRelaciones(ag.id)}
+                      title={`Ver con quién relacionan las fuentes a ${ag.n}`}
+                    >
+                      relaciones
+                    </button>
                   )}
                   <span className="gen">
                     {ag?.div ? 'Divinidad' : `Gen. ${a.g > 0 ? '+' : ''}${a.g}`}

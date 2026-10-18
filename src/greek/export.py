@@ -330,6 +330,177 @@ def _contradicciones(con: sqlite3.Connection) -> list[dict]:
     return filas
 
 
+#: Lo que la vista de relaciones dibuja como nodo. Los lugares quedan fuera: ya
+#: tienen el mapa, y meterlos convertia a cada dios en una estrella de santuarios.
+TIPOS_RED = ("agente", "colectivo", "objeto", "constelacion", "evento_mitico")
+
+
+def _red(con: sqlite3.Connection, citas: dict[int, list[dict]]) -> dict:
+    """Grafo figura-figura con UNA arista por (sujeto, predicado, objeto, rol).
+
+    En `relacion` hay una fila por fuente que afirma el hecho, y dibujarlas tal
+    cual es lo que hacia ilegible Memgraph Lab: entre Heracles y Zeus salian N
+    `IS_CHILD_OF` superpuestas. Aqui se agregan y la cuenta de fuentes viaja en
+    `n`.
+
+    El objeto sale de `objeto_id` o, si es NULL, de los roles que el predicado
+    declara como argumento (`graph.roles_objeto`), igual que en la proyeccion a
+    Memgraph: el 29 % de las relaciones no tiene objeto directo.
+
+    Los flags de incertidumbre se agregan con AND: si una fuente duda y otra lo
+    afirma sin reservas, el hecho esta afirmado. `dis` marca la arista si alguna
+    de sus relaciones esta en una `contradiccion` de genealogia o de autoria de
+    muerte: las de ubicacion discuten DONDE paso, no entre quienes, y contarlas
+    pintaba de rubrica casi todas las aristas de Heracles.
+    """
+    from .graph import roles_objeto
+
+    tipo_de: dict[int, str] = {}
+    marcas = ",".join("?" * len(TIPOS_RED))
+    for f in con.execute(
+        f"SELECT e.id, te.clave FROM entidad e JOIN tipo_entidad te ON te.id = e.tipo_entidad_id "
+        f"WHERE te.clave IN ({marcas})",
+        TIPOS_RED,
+    ):
+        tipo_de[f["id"]] = f["clave"]
+
+    destinos: dict[int, list[tuple[str, int]]] = defaultdict(list)
+    for f in con.execute(
+        "SELECT relacion_id, rol, entidad_id FROM relacion_rol WHERE entidad_id IS NOT NULL"
+    ):
+        destinos[f["relacion_id"]].append((f["rol"], f["entidad_id"]))
+
+    en_disputa: set[int] = set()
+    for f in con.execute(
+        "SELECT relacion_a_id, relacion_b_id FROM contradiccion "
+        "WHERE tipo IN ('genealogia', 'autoria_muerte')"
+    ):
+        en_disputa.update((f["relacion_a_id"], f["relacion_b_id"]))
+
+    predicados: list[dict] = []
+    indice_pred: dict[int, int] = {}
+    cache_roles: dict[str, list[str]] = {}
+    grupos: dict[tuple[int, int, int, str], dict] = {}
+
+    for r in con.execute(
+        """
+        SELECT r.id, r.sujeto_id AS s, r.objeto_id AS o, r.predicado_id AS pid,
+               p.clave AS pk, p.nombre_es AS pe, p.categoria AS cat,
+               r.dato_incierto AS inc, r.duda_expresada AS duda,
+               r.dato_implicito AS impl, r.alternativas_dadas AS alt
+          FROM relacion r JOIN predicado p ON p.id = r.predicado_id
+        """
+    ):
+        if r["s"] not in tipo_de:
+            continue
+        if r["o"] is not None:
+            pares = [("", r["o"])]
+        else:
+            if r["pk"] not in cache_roles:
+                cache_roles[r["pk"]] = roles_objeto(r["pk"])
+            admitidos = cache_roles[r["pk"]]
+            pares = [(rol, d) for rol, d in destinos.get(r["id"], []) if rol in admitidos]
+
+        for rol, o in pares:
+            if o not in tipo_de or o == r["s"]:
+                continue
+            if r["pid"] not in indice_pred:
+                indice_pred[r["pid"]] = len(predicados)
+                predicados.append(
+                    {"k": r["pk"], "e": r["pe"] or r["pk"], "cat": r["cat"] or "otra"}
+                )
+            g = grupos.setdefault(
+                (r["s"], o, r["pid"], rol),
+                {"rids": [], "inc": 1, "duda": 1, "impl": 1, "alt": 1, "dis": 0},
+            )
+            g["rids"].append(r["id"])
+            for flag in ("inc", "duda", "impl", "alt"):
+                g[flag] &= 1 if r[flag] else 0
+            if r["id"] in en_disputa:
+                g["dis"] = 1
+
+    aristas = []
+    grado: dict[int, int] = defaultdict(int)
+    # Las citas se internan: el mismo pasaje (Apolodoro, Epitome 1.1-1.4) atestigua
+    # decenas de aristas, y repetirlo en cada una eran 1,4 MB.
+    tabla_citas: list[dict] = []
+    indice_cita: dict[str, int] = {}
+    for (s, o, pid, rol), g in grupos.items():
+        ci: list[dict] = []
+        vistas: set[str] = set()
+        for rid in g["rids"]:
+            for c in citas.get(rid, []):
+                if c["t"] not in vistas:
+                    vistas.add(c["t"])
+                    ci.append(c)
+        a = {"s": s, "o": o, "p": indice_pred[pid], "n": max(len(ci), len(g["rids"]))}
+        if rol:
+            a["rol"] = rol
+        # solo los flags encendidos: con ~15.000 aristas, cuatro ceros por fila
+        # son cientos de KB de nada
+        for flag in ("inc", "duda", "impl", "alt", "dis"):
+            if g[flag]:
+                a[flag] = 1
+        if ci:
+            a["ci"] = []
+            for c in ci[:MAX_CITAS]:
+                if c["t"] not in indice_cita:
+                    indice_cita[c["t"]] = len(tabla_citas)
+                    tabla_citas.append(c)
+                a["ci"].append(indice_cita[c["t"]])
+        aristas.append(a)
+        grado[s] += 1
+        grado[o] += 1
+
+    papeles: dict[int, list[str]] = defaultdict(list)
+    for f in con.execute("SELECT entidad_id, papel FROM entidad_papel ORDER BY papel"):
+        papeles[f["entidad_id"]].append(f["papel"])
+    generacion: dict[int, tuple[int, int]] = {
+        f["entidad_id"]: (f["generacion"], f["transmite"])
+        for f in con.execute("SELECT entidad_id, generacion, transmite FROM entidad_generacion")
+    }
+    variantes = _variantes(con)
+    enlaces = _enlaces(con)
+
+    nodos = []
+    ids = ",".join(str(i) for i in grado)
+    for f in con.execute(
+        f"SELECT id, COALESCE(nombre_es, nombre) AS n, nombre AS orig, nombre_grc AS grc, "
+        f"descripcion AS d FROM entidad WHERE id IN ({ids})"
+    ):
+        nodo = {"id": f["id"], "n": f["n"], "t": tipo_de[f["id"]], "gr": grado[f["id"]]}
+        if f["grc"]:
+            nodo["grc"] = f["grc"]
+        if f["d"]:
+            nodo["d"] = f["d"]
+        if papeles.get(f["id"]):
+            nodo["p"] = papeles[f["id"]]
+        if f["id"] in generacion:
+            gen, transmite = generacion[f["id"]]
+            nodo["g"] = gen
+            if not transmite:
+                nodo["div"] = 1
+        if enlaces.get(f["id"]):
+            nodo["enl"] = enlaces[f["id"]]
+        nodo["q"] = clave_busqueda(f["n"], f["orig"], f["grc"], *variantes.get(f["id"], ()))
+        nodos.append(nodo)
+    nodos.sort(key=lambda x: -x["gr"])
+
+    return {"predicados": predicados, "citas": tabla_citas, "nodos": nodos, "aristas": aristas}
+
+
+def exportar_red(con: sqlite3.Connection, dest: Path, citas: dict[int, list[dict]]) -> str:
+    """Fichero aparte: la vista de relaciones lo pide solo cuando se abre, asi que
+    el mapa no paga su peso en la primera carga."""
+    red = _red(con, citas)
+    dest.write_text(json.dumps(red, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    return (
+        f"{dest.relative_to(ROOT)}: {dest.stat().st_size // 1024:,} KB · "
+        f"{len(red['nodos']):,} figuras, {len(red['aristas']):,} relaciones agregadas, "
+        f"{len(red['predicados'])} predicados"
+    )
+
+
 def exportar_web(con: sqlite3.Connection, dest: Path = DEST) -> str:
     if not con.execute(
         "SELECT 1 FROM sqlite_master WHERE type='table' AND name='entidad_generacion'"
@@ -462,10 +633,11 @@ def exportar_web(con: sqlite3.Connection, dest: Path = DEST) -> str:
         json.dumps(datos, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
     )
     kb = dest.stat().st_size // 1024
+    informe_red = exportar_red(con, dest.with_name("red.json"), citas)
     return (
         f"{dest.relative_to(ROOT)}: {kb:,} KB · {len(lugares):,} lugares, "
         f"{len(datos['agentes']):,} agentes, {len(afirmaciones):,} afirmaciones, "
         f"{len(contradicciones):,} contradicciones de ubicacion, "
         f"{len(datos['autoridades'])} autoridades · generaciones "
-        f"{rango['lo']}..{rango['hi']}"
+        f"{rango['lo']}..{rango['hi']}\n{informe_red}"
     )

@@ -124,3 +124,56 @@ export interface Datos {
   afirmaciones: Afirmacion[]
   contradicciones: Contradiccion[]
 }
+
+/* ---------------------------------------------- red.json (vista de relaciones) */
+
+export interface PredicadoRed {
+  k: string
+  /** etiqueta castellana, verbo en tercera persona: «es hijo de», «mata a» */
+  e: string
+  cat: string
+}
+
+export interface NodoRed {
+  id: number
+  n: string
+  /** agente | colectivo | objeto | constelacion | evento_mitico */
+  t: string
+  /** número de relaciones agregadas: escala el nodo */
+  gr: number
+  grc?: string
+  d?: string
+  p?: string[]
+  g?: number
+  div?: number
+  enl?: Enlace[]
+  q: string
+}
+
+/** Una arista por (sujeto, predicado, objeto, rol): las N filas de `relacion` que
+ *  afirman lo mismo desde fuentes distintas llegan agregadas. */
+export interface AristaRed {
+  s: number
+  o: number
+  /** índice en `predicados` */
+  p: number
+  /** cuántas fuentes lo afirman */
+  n: number
+  rol?: string
+  /** flags agregados con AND: solo si TODAS las fuentes lo marcan */
+  inc?: 1
+  duda?: 1
+  impl?: 1
+  alt?: 1
+  /** alguna de sus relaciones está en una `contradiccion` */
+  dis?: 1
+  /** índices en `citas` */
+  ci?: number[]
+}
+
+export interface Red {
+  predicados: PredicadoRed[]
+  citas: Cita[]
+  nodos: NodoRed[]
+  aristas: AristaRed[]
+}

@@ -378,6 +378,23 @@ coordenada, no los 36.851 de Pleiades.
   algún lugar visible — con «héroes + guerra» el mapa baja a 61 lugares y seguían pintándose las
   286 líneas, tapando justo lo que el filtro acababa de aislar.
 
+### Vista de relaciones (`export._red` + `web/src/Red.tsx`)
+
+Sustituto estático de Memgraph Lab para la web pública (Pages no corre servidores).
+`export-web` escribe además `web/public/data/red.json` (1,6 MB, **también en git**), que el
+navegador pide solo al abrir la vista. Grafo ego radial en SVG, sin dependencias.
+
+- **Una arista por (sujeto, predicado, objeto, rol)**, con `n` = fuentes. Dibujar una por
+  fila de `relacion` es lo que hacía ilegible Lab: N `IS_CHILD_OF` superpuestas.
+- Objeto de `objeto_id` o de los roles argumento (`graph.roles_objeto`), igual que el grafo.
+- Solo figuras (`TIPOS_RED`); los lugares ya tienen el mapa.
+- Flags de incertidumbre agregados con **AND**: una fuente que duda no anula a otra que afirma.
+- `dis` (rúbrica) solo para contradicciones de `genealogia`/`autoria_muerte`: las de
+  `ubicacion` discuten dónde, no entre quiénes, y teñían casi todas las aristas de Heracles.
+- Citas internadas en una tabla (`citas` + índices): repetidas por arista eran 1,4 MB.
+- Si no caben todas las figuras en el anillo, **la familia entra siempre** y el resto por
+  fuentes: recortar por fuentes a secas dejaba fuera progenitores citados una vez.
+
 ### Enlaces a los textos y buscador por nombre
 
 **Enlace al pasaje** (`export.enlace_pasaje`), tres niveles del más exacto al reconstruido:

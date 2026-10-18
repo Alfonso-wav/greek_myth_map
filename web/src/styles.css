@@ -943,6 +943,335 @@ input[type='range']::-moz-range-thumb {
   margin-left: auto;
 }
 
+/* ------------------------------------------------- vista de relaciones */
+
+.vistas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+}
+.vistas .conmutador {
+  justify-content: center;
+}
+.vistas .conmutador + .conmutador {
+  border-left-width: 0;
+}
+.ayuda-red {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-leading);
+  color: var(--tinta-2);
+  text-wrap: pretty;
+}
+
+/* botones que se leen como enlace: «relaciones», «Ver en el mapa», nombres */
+button.enlace,
+button.nombre {
+  padding: 0;
+  font: inherit;
+  color: var(--enlace);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--enlace) 40%, transparent);
+  text-underline-offset: 2px;
+}
+button.enlace:hover,
+button.nombre:hover {
+  text-decoration-color: var(--enlace);
+}
+.afirm .cabeza button.enlace {
+  font-size: var(--text-label-size);
+}
+
+.red-col {
+  grid-template-rows: minmax(0, 1fr);
+}
+.red {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) min(400px, 40%);
+  min-height: 0;
+  height: 100%;
+}
+.red-lienzo {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--fondo);
+}
+.red-lienzo svg {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+/* La línea es dato: tono y grosor dicen cuántas fuentes lo afirman (la misma
+ * rampa de tinta del mapa), la rúbrica dice que discrepan. Nada más tiene color. */
+.arista {
+  stroke: var(--m1);
+  stroke-width: 1;
+  transition: opacity var(--rapido);
+}
+.arista.f2 {
+  stroke: var(--m2);
+  stroke-width: 1.5;
+}
+.arista.f3 {
+  stroke: var(--m3);
+  stroke-width: 2.25;
+}
+.arista.f4 {
+  stroke: var(--m4);
+  stroke-width: 3;
+}
+.arista.dis {
+  stroke: var(--rubrica);
+}
+.arista.debil {
+  stroke-dasharray: 3 3;
+}
+.con-foco .arista:not(.activa),
+.con-foco .vecino:not(.activa) {
+  opacity: 0.25;
+}
+
+.vecino {
+  cursor: pointer;
+  outline: none;
+  transition: opacity var(--rapido);
+}
+.vecino .toque {
+  fill: transparent;
+}
+.vecino .punto {
+  fill: var(--superficie);
+  stroke: var(--tinta-2);
+  stroke-width: 1.5;
+}
+.vecino text {
+  font-size: var(--text-label-size);
+  fill: var(--tinta-2);
+  paint-order: stroke;
+  stroke: var(--fondo);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+.vecino.activa .punto,
+.vecino:focus-visible .punto {
+  fill: var(--tinta);
+  stroke: var(--tinta);
+}
+.vecino.activa text,
+.vecino:focus-visible text {
+  fill: var(--tinta);
+  font-weight: 500;
+}
+.vecino:focus-visible .toque {
+  stroke: var(--tinta);
+  stroke-width: 2;
+}
+
+.rotulo-grupo {
+  font-size: var(--text-label-size);
+  font-weight: var(--text-label-weight);
+  fill: var(--tinta-apagada);
+  paint-order: stroke;
+  stroke: var(--fondo);
+  stroke-width: 4px;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.centro circle {
+  fill: var(--negativo);
+}
+.centro text {
+  font-family: var(--fuente-texto);
+  font-size: var(--text-heading-size);
+  font-weight: 700;
+  fill: var(--tinta);
+  paint-order: stroke;
+  stroke: var(--fondo);
+  stroke-width: 5px;
+  stroke-linejoin: round;
+}
+
+.red-buscar {
+  position: absolute;
+  top: var(--space-md);
+  left: var(--space-md);
+  z-index: 10;
+  width: min(320px, calc(100% - 32px));
+}
+.red-buscar input {
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 10px;
+  background: var(--superficie);
+  border: 1px solid var(--filete);
+  border-radius: var(--radius-none);
+  box-shadow: var(--sombra);
+}
+.red-resultados {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  background: var(--superficie);
+  border: 1px solid var(--filete);
+  border-top: 0;
+  box-shadow: var(--sombra);
+}
+.red-resultados button {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  width: 100%;
+  min-height: var(--toque);
+  padding: 4px 10px;
+  text-align: left;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.red-resultados button:hover {
+  background: var(--superficie-2);
+}
+.red-resultados .cifra {
+  font-size: var(--text-label-size);
+  color: var(--tinta-apagada);
+}
+.red-resultados .nada {
+  padding: 8px 10px;
+  font-size: var(--text-small-size);
+  color: var(--tinta-apagada);
+}
+
+.red-pista {
+  position: absolute;
+  top: var(--space-md);
+  right: var(--space-md);
+  z-index: 10;
+  max-width: min(320px, 45%);
+  padding: 8px 10px;
+  font-size: var(--text-small-size);
+  line-height: var(--text-small-leading);
+  color: var(--tinta);
+  background: var(--superficie);
+  border: 1px solid var(--filete);
+  box-shadow: var(--sombra);
+  pointer-events: none;
+}
+.red-pista i {
+  font-style: normal;
+  color: var(--tinta-2);
+}
+.red-pista .dis {
+  color: var(--rubrica);
+}
+.red-pista .mas {
+  color: var(--tinta-apagada);
+}
+
+.red-leyenda .escala i.f1 { background: var(--m1); }
+.red-leyenda .escala i.f2 { background: var(--m2); }
+.red-leyenda .escala i.f3 { background: var(--m3); }
+.red-leyenda .escala i.f4 { background: var(--m4); }
+.red-leyenda .marca-linea.solida {
+  border-top-style: solid;
+}
+.red-leyenda .marca-linea.debil {
+  border-top: 2px dashed var(--tinta-2);
+}
+
+.ficha {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--superficie);
+  border-left: 1px solid var(--filete);
+}
+.ficha header {
+  padding: var(--space-md);
+  border-bottom: 1px solid var(--filete);
+}
+.ficha h2 {
+  font-family: var(--fuente-texto);
+  font-size: var(--text-brand-size);
+  font-weight: var(--text-brand-weight);
+  line-height: var(--text-brand-leading);
+  text-wrap: balance;
+}
+.ficha .grc {
+  margin-top: 2px;
+  font-family: var(--fuente-texto);
+  color: var(--tinta-2);
+}
+.ficha .sub {
+  margin-top: 6px;
+  font-size: var(--text-small-size);
+  color: var(--tinta-2);
+  text-wrap: pretty;
+}
+.ficha .enlaces button.enlace {
+  min-height: 28px;
+}
+.ficha .resumen {
+  margin-top: var(--space-sm);
+  font-size: var(--text-label-size);
+  color: var(--tinta-apagada);
+  text-wrap: pretty;
+}
+.grupo-red h3 {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 8px var(--space-md);
+  font-size: var(--text-label-size);
+  font-weight: var(--text-label-weight);
+  color: var(--tinta);
+  background: var(--superficie-2);
+  border-bottom: 1px solid var(--filete);
+}
+.grupo-red h3 .cifra {
+  color: var(--tinta-apagada);
+  font-weight: 400;
+}
+.grupo-red .afirm .que b {
+  font-weight: 600;
+  color: var(--tinta);
+}
+.marcas em.dis {
+  color: var(--rubrica);
+  border-color: var(--rubrica);
+}
+.red.vacia {
+  display: grid;
+  place-items: center;
+  color: var(--tinta-2);
+}
+
+@media (max-width: 900px) {
+  .red {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(320px, 58%) minmax(0, 1fr);
+  }
+  .ficha {
+    border-left: 0;
+    border-top: 1px solid var(--filete);
+  }
+  .red-pista {
+    display: none;
+  }
+  /* a este ancho la leyenda tapaba medio anillo; la ayuda del menú la explica */
+  .red-leyenda {
+    display: none;
+  }
+}
+
 /* ------------------------------------------------- móvil y tablet (≤ 900) */
 
 @media (max-width: 900px) {

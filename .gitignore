@@ -18,6 +18,7 @@ web/node_modules/
 web/dist/
 web/public/data/*
 !web/public/data/greek.json
+!web/public/data/red.json
 web/*.tsbuildinfo
 web/.vite/
 

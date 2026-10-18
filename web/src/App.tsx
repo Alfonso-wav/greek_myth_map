@@ -2,8 +2,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import Mapa from './Mapa'
 import Panel from './Panel'
+import Red from './Red'
 import Tiempo from './Tiempo'
 import { cargar, CORTES, indexar, mayuscula, visibles, type Indice } from './datos'
+import { cargarRed, type IndiceRed } from './datosRed'
+
+type Vista = 'mapa' | 'red'
+/** Figura con la que se abre la vista de relaciones: la mejor conectada entre
+ *  los héroes, con padres, hijos, parejas y víctimas en todos los grupos. */
+const FIGURA_INICIAL = 'Heracles'
 
 type Tema = 'auto' | 'light' | 'dark'
 const SIGUIENTE_TEMA: Record<Tema, Tema> = { auto: 'light', light: 'dark', dark: 'auto' }
@@ -51,6 +58,12 @@ export default function App() {
     () => new Set((inicial.get('c') ?? '').split(',').filter(Boolean)),
   )
   const [busqueda, setBusqueda] = useState(inicial.get('q') ?? '')
+  const [vista, setVista] = useState<Vista>(inicial.get('v') === 'red' ? 'red' : 'mapa')
+  const [figura, setFigura] = useState<number | null>(
+    inicial.get('f') ? Number(inicial.get('f')) : null,
+  )
+  const [ir, setIr] = useState<IndiceRed | null>(null)
+  const [errorRed, setErrorRed] = useState<string | null>(null)
 
   const estrecho = useEstrecho()
   const [cajon, setCajon] = useState(false)
@@ -72,6 +85,23 @@ export default function App() {
       .then((d) => setIdx(indexar(d)))
       .catch((e) => setError(String(e.message ?? e)))
   }, [])
+
+  // red.json solo se pide al abrir la vista: el mapa no paga su peso al arrancar
+  useEffect(() => {
+    if (vista !== 'red' || ir) return
+    cargarRed()
+      .then((r) => {
+        setIr(r)
+        setFigura(
+          (f) =>
+            (f != null && r.nodos.has(f) ? f : null) ??
+            r.red.nodos.find((n) => n.n === FIGURA_INICIAL)?.id ??
+            r.red.nodos[0]?.id ??
+            null,
+        )
+      })
+      .catch((e) => setErrorRed(String(e.message ?? e)))
+  }, [vista, ir])
 
   useEffect(() => {
     const raiz = document.documentElement
@@ -119,8 +149,12 @@ export default function App() {
     if (papeles.size) p.set('p', [...papeles].join(','))
     if (categorias.size) p.set('c', [...categorias].join(','))
     if (busqueda.trim()) p.set('q', busqueda.trim())
+    if (vista === 'red') p.set('v', 'red')
+    if (vista === 'red' && figura != null) p.set('f', String(figura))
     history.replaceState(null, '', `#${p}`)
   }, [
+    vista,
+    figura,
     gen,
     seleccion,
     autoridadNombre,
@@ -163,6 +197,15 @@ export default function App() {
 
   const onSeleccion = useCallback((id: number | null) => setSeleccion(id), [])
   const cerrarPanel = useCallback(() => setSeleccion(null), [])
+  const verRelaciones = useCallback((id: number) => {
+    setFigura(id)
+    setVista('red')
+  }, [])
+  const verEnMapa = useCallback((nombre: string) => {
+    setBusqueda(nombre)
+    setSeleccion(null)
+    setVista('mapa')
+  }, [])
 
   // lo que difiere de la vista por defecto, para el botón «Filtros» del móvil
   const nActivos =
@@ -203,8 +246,8 @@ export default function App() {
           aria-controls="lateral"
           onClick={() => setCajon(true)}
         >
-          Filtros
-          {nActivos > 0 && (
+          {vista === 'mapa' ? 'Filtros' : 'Menú'}
+          {vista === 'mapa' && nActivos > 0 && (
             <b>
               {' · '}
               {nActivos}
@@ -221,9 +264,46 @@ export default function App() {
             <p>El mito griego lugar por lugar: dónde sitúa cada fuente antigua cada hecho.</p>
           </div>
           <button className="boton cajon-cerrar" onClick={cerrarCajon}>
-            Ver mapa
+            {vista === 'mapa' ? 'Ver mapa' : 'Ver relaciones'}
           </button>
         </div>
+
+        <div className="vistas" role="group" aria-label="Vista">
+          <button
+            className="conmutador"
+            aria-pressed={vista === 'mapa'}
+            onClick={() => setVista('mapa')}
+          >
+            Mapa
+          </button>
+          <button
+            className="conmutador"
+            aria-pressed={vista === 'red'}
+            onClick={() => setVista('red')}
+          >
+            Relaciones
+          </button>
+        </div>
+
+        {vista === 'red' ? (
+          <div className="ayuda-red">
+            <p>
+              Cada figura en el centro, rodeada de aquellas con las que la relacionan las fuentes,
+              agrupadas por clase de relación: progenitores arriba y el resto de grupos en el
+              sentido de las agujas del reloj.
+            </p>
+            <p>
+              Una línea resume todas las fuentes que afirman la relación: cuanto más oscura, más
+              fuentes. En rojo, cuando las fuentes discrepan sobre quién es el progenitor o quién
+              mató a quién. Pulsa una figura para centrarla.
+            </p>
+            <p className="ayuda">
+              El mito no tiene versión canónica: si Hesíodo y Apolodoro dan padres distintos,
+              salen los dos.
+            </p>
+          </div>
+        ) : (
+          <>
 
         <div className="campo">
           <label htmlFor="busqueda">
@@ -339,6 +419,9 @@ export default function App() {
           </div>
         </fieldset>
 
+          </>
+        )}
+
         <footer className="pie-lateral">
           <button className="boton" onClick={() => setTema(SIGUIENTE_TEMA[tema])}>
             Tema: {NOMBRE_TEMA[tema]}
@@ -349,6 +432,28 @@ export default function App() {
         </footer>
       </aside>
 
+      {vista === 'red' ? (
+        <main className="lienzo-col red-col">
+          {errorRed ? (
+            <div className="cargando" role="alert">
+              <h1>No se pudieron cargar las relaciones</h1>
+              <p>{errorRed}</p>
+            </div>
+          ) : ir && figura != null ? (
+            <Red
+              ir={ir}
+              centro={figura}
+              onCentro={setFigura}
+              onVerMapa={verEnMapa}
+              enMapa={(id) => idx.agentes.has(id)}
+            />
+          ) : (
+            <div className="cargando" aria-busy="true">
+              <p>Cargando las relaciones…</p>
+            </div>
+          )}
+        </main>
+      ) : (
       <main className="lienzo-col">
         <div className="lienzo">
           <Mapa
@@ -414,6 +519,7 @@ export default function App() {
               contradicciones={disputas}
               autoridad={autoridad}
               onCerrar={cerrarPanel}
+              onRelaciones={verRelaciones}
             />
           )}
         </div>
@@ -430,6 +536,7 @@ export default function App() {
           onGen={setGen}
         />
       </main>
+      )}
     </div>
   )
 }
